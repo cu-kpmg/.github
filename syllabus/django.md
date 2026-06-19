@@ -44,1368 +44,1840 @@ Build a production-ready API for selling game keys. Publishers upload games, use
 
 ### Day 1 – Environment & Project Setup
 
-**Goals:** Install tooling, scaffold the Django project, configure environment variables, run the dev server.
+#### 📋 Teacher Prep & Classroom Setup
+1. **Pre-class Checklist**:
+   - Ensure you have Python 3.12+ installed.
+   - Open a clean terminal window in an empty project directory.
+   - Have a web browser open and ready to navigate to `http://127.0.0.1:8000/`.
+2. **Prerequisites Checklist**:
+   - Students should have standard terminal environments working on their OS (Mac/Linux or Windows Git Bash/PowerShell).
+3. **Required Material**:
+   - Whiteboard or slide showing the end-to-end system architecture (User → Orders API → DB/GameKey → Expiration Engine → Celery → Webhook Queue → Publisher).
 
-```bash
-# Install uv
-curl -LsSf https://astral.sh/uv/install.sh | sh
+#### 🎯 Learning Objectives
+By the end of this class, students will be able to:
+- Install and configure modern Python package management using `uv`.
+- Initialize and activate a virtual environment.
+- Scaffold a new Django project and custom app.
+- Securely configure environment variables using `python-decouple`.
+- Initialize a Git repository and prevent secrets leaks using `.gitignore`.
+- Run the Django development server and verify the default setup.
 
-# Create and activate virtual environment
-uv venv
-source .venv/bin/activate
+#### ⏱ Classroom Timeline (90 min)
+| Segment | Duration | Focus / Teacher Action |
+|---------|----------|------------------------|
+| **1. Hook & Big Picture** | 15 min | Interactive overview of the bootcamp outcome (game key expiry & publisher webhooks). |
+| **2. Key Concepts & Core Ideas** | 15 min | Introduction to MTV, API backends, package management (`uv`), and configuration security. |
+| **3. Live Coding Walkthrough** | 45 min | Live setup of python environment, Django, and decoupling configuration. |
+| **4. Check for Understanding** | 10 min | Q&A on virtual environments, secrets management, and DEBUG mode. |
+| **5. Class Wrap-up & Checkpoint** | 5 min | Verification of students' local environments. |
 
-# Add dependencies
-uv add django djangorestframework python-decouple celery redis pytest-django
+---
 
-# Scaffold project and app
-django-admin startproject gamekey_platform .
-python manage.py startapp games
-```
+#### 🚀 Lecture Step-by-Step Delivery Plan
 
-Create `.env` in the project root:
+##### 1. Hook & Big Picture (15 min)
+* **Teacher Action**: Open a diagram showing the complete workflow. Explain the business problem: digital game key marketplaces need to deliver keys to users, track their expirations, and automatically notify publishers when a key expires so they can deactivate it on their servers.
+* **Big Picture**: Show the finished flow: User buys key → key expires → Celery fires webhook → publisher receives it. Explain to students: *Make them care about the outcome before writing a single line.*
 
-```env
-SECRET_KEY=your-secret-key-here
-DEBUG=True
-```
+##### 2. Key Concepts & Core Ideas (15 min)
+Introduce the following definitions to the students:
+* **What is Django?** MTV (Model-Template-View) framework. Mention that we'll use it purely as a REST API backend with no HTML templates.
+* **What is DRF?** Django REST Framework. A toolkit built on top of Django that gives us serializers, viewsets, and routers for building RESTful APIs.
+* **Virtual environments**: Why isolation matters (preventing dependency conflicts and ensuring reproducibility across developers' machines).
+* **DEBUG=True vs False**: Django displays highly detailed error pages containing traceback information. Explain that this is crucial for development but a critical security leak in production.
+* **Why python-decouple?** Reading from `os.environ.get()` is functional but `decouple` simplifies casting types (e.g. converting a string `"True"` to boolean `True`) and handling defaults and local `.env` files in a clean API.
 
-Update `gamekey_platform/settings.py` to use `python-decouple`:
+---
 
-```python
-from decouple import config
+##### 3. Live Coding Walkthrough (45 min)
 
-SECRET_KEY = config('SECRET_KEY')
-DEBUG = config('DEBUG', default=False, cast=bool)
-```
+###### Step 3.1: Tooling Installation & Scaffolding
+* **Explain**: Contrast standard `pip` + `venv` with `uv`. Why are we using `uv`? Speed, lockfiles, and reproducibility. Run the installation and scaffolding commands while students follow along.
+* **Code**:
+  ```bash
+  # Install uv
+  curl -LsSf https://astral.sh/uv/install.sh | sh
 
-```bash
-# Verify setup
-python manage.py runserver
-```
+  # Create and activate virtual environment
+  uv venv
+  source .venv/bin/activate
 
-- Git init, add `.gitignore` (include `.env`)
+  # Add dependencies
+  uv add django djangorestframework python-decouple celery redis pytest-django
 
-### 🎓 Instructor Teaching Plan
+  # Scaffold project and app
+  django-admin startproject gamekey_platform .
+  python manage.py startapp games
+  ```
+* **Verify**: Confirm that every student sees `(.venv)` in their command line prompt. Pause here to ensure everyone is inside the active virtual environment before moving on.
+* **⚠️ Common Pitfalls**:
+  - **Forgetting to activate the venv**: If students skip `source .venv/bin/activate`, they will install dependencies globally or get "django not found". Teach them to run `which python` to verify the path points to `.venv`.
+  - **Windows path differences**: Flag that on Windows, the activation command is `.venv\Scripts\activate` rather than `.venv/bin/activate`.
 
-#### ⏱ Time Breakdown (90 min)
+###### Step 3.2: Environment Variable Configuration
+* **Explain**: Explain why secrets (such as the Django `SECRET_KEY`) should never go into version control (source code). Show what happens if you push a secret key to a public GitHub repository. Create the local environment file.
+* **Code**:
+  Create `.env` in the project root directory:
+  ```env
+  SECRET_KEY=your-secret-key-here
+  DEBUG=True
+  ```
+* **Verify**: Check that the `.env` file is created and contains the correct key-value pairs.
 
-| Segment | Duration | Activity |
-|---------|----------|----------|
-| Bootcamp intro & big picture | 15 min | Diagram: what we're building end-to-end. Show the finished flow: user buys key → key expires → Celery fires webhook → publisher receives it. Make students care about the outcome before writing a single line. |
-| Python ecosystem warmup | 10 min | Briefly contrast `pip` + `venv` with `uv`. Why `uv`? Speed, lockfiles, reproducibility. Don't over-explain — run it live. |
-| Live setup (students follow along) | 25 min | Walk through every command in the Day 1 code block. Pause after `uv venv` and `source .venv/bin/activate` — confirm every student sees `(.venv)` in their prompt before continuing. |
-| `python-decouple` and `.env` | 15 min | Explain *why* secrets don't go in source code. Show what happens if you hard-code `SECRET_KEY` and push to GitHub. Set up `.env`, read it via `decouple`, add `.env` to `.gitignore`. |
-| Git init & first commit | 10 min | `git init`, stage, commit. Confirm `.env` is not tracked (`git status`). |
-| Q&A + checkpoint verification | 15 min | Every student must show the Django rocket page at `localhost:8000` before leaving. |
+###### Step 3.3: Django settings.py Decoupling
+* **Explain**: Now we need to modify Django's settings to read our newly created `.env` file rather than having hardcoded variables.
+* **Code**:
+  Update `gamekey_platform/settings.py` to import and use `python-decouple`:
+  ```python
+  from decouple import config
 
-#### 💡 Key Concepts to Introduce
+  SECRET_KEY = config('SECRET_KEY')
+  DEBUG = config('DEBUG', default=False, cast=bool)
+  ```
+* **Verify**: Run the development server to verify the configuration is loaded correctly:
+  ```bash
+  # Verify setup
+  python manage.py runserver
+  ```
+  Navigate to `http://localhost:8000/` and verify the Django welcome page loads.
+* **⚠️ Common Pitfalls**:
+  - **`SECRET_KEY` still hardcoded**: Students might add `python-decouple` but forget to update the actual variables in `settings.py`. Test this by removing the key from `.env` and seeing if Django throws an error on startup.
 
-- **What is Django?** MTV framework (Model-Template-View). We'll use it purely as an API backend — no templates.
-- **What is DRF?** A toolkit on top of Django for building REST APIs. Preview: it gives us serializers, viewsets, routers.
-- **Virtual environments** — why isolation matters (dependency conflicts, reproducibility).
-- **`DEBUG=True` vs `False`** — Django shows a detailed error page in debug mode. Always `False` in production.
-- **Why `python-decouple`?** `os.environ.get()` works too, but `decouple` handles type casting, default values, and `.env` parsing in one clean API.
+###### Step 3.4: Git Initialization
+* **Explain**: Set up version control. Introduce the `.gitignore` file and emphasize that the `.env` file must be ignored immediately to prevent leaking the secret keys.
+* **Code**:
+  ```bash
+  git init
+  ```
+  Create `.gitignore` and include `.env` (along with standard Python/Django patterns: `__pycache__`, `.venv`, `*.pyc`, etc.):
+  ```
+  .env
+  .venv/
+  *.pyc
+  __pycache__/
+  db.sqlite3
+  ```
+* **Verify**: Run `git status` and confirm that `.env` is NOT listed under untracked files.
+* **⚠️ Common Pitfalls**:
+  - **Committing `.env` to Git**: Show the students what `git status` looks like *before* and *after* editing `.gitignore` to show how Git tracks files.
 
-#### ⚠️ Common Mistakes to Address
+---
 
-- **Forgetting to activate the venv** — the most common Day 1 error. Symptom: `django` not found even after `uv add`. Teach students to check `which python`.
-- **Committing `.env` to git** — show *before* adding to `.gitignore` what `git status` reveals. Make the danger concrete.
-- **`SECRET_KEY` still hard-coded** — students sometimes add `python-decouple` but forget to update `settings.py`. Verify by removing the `.env` line and confirming Django raises an error.
-- **Windows path differences** — `.venv/Scripts/activate` not `.venv/bin/activate`. If any Windows users are present, flag this upfront.
+#### 4. Check for Understanding (10 min)
 
-#### ❓ Check for Understanding
-
-> "Why can't we just hard-code `SECRET_KEY = 'abc123'` in settings.py?"
+> **Question**: "Why can't we just hard-code `SECRET_KEY = 'abc123'` in settings.py?"
 >
-> **Answer:** Hard-coding `SECRET_KEY` in source code poses a severe security risk. If the repository is pushed to a public platform (like GitHub), anyone can see the key. Attackers can use it to forge signed cookies, session data, or password reset tokens. Storing it in an environment variable (`.env` file) keeps it private and allows different values for development and production environments.
+> **Answer**: Hard-coding `SECRET_KEY` in source code poses a severe security risk. If the repository is pushed to a public platform (like GitHub), anyone can see the key. Attackers can use it to forge signed cookies, session data, or password reset tokens. Storing it in an environment variable (`.env` file) keeps it private and allows different values for development and production environments.
 
-> "What would happen if two projects on the same machine installed different versions of `django` without virtual environments?"
+> **Question**: "What would happen if two projects on the same machine installed different versions of `django` without virtual environments?"
 >
-> **Answer:** Installing different versions globally would cause a conflict because Python can only resolve one version of a package in its global site-packages directory. Installing a different version for the second project would overwrite the version needed by the first project, breaking it. Virtual environments isolate dependencies per project, allowing each to run its required version independently.
+> **Answer**: Installing different versions globally would cause a conflict because Python can only resolve one version of a package in its global site-packages directory. Installing a different version for the second project would overwrite the version needed by the first project, breaking it. Virtual environments isolate dependencies per project, allowing each to run its required version independently.
 
-> "What does `DEBUG=True` change about how Django behaves?"
+> **Question**: "What does `DEBUG=True` change about how Django behaves?"
 >
-> **Answer:** When `DEBUG=True`, Django displays detailed error traceback pages to the client (useful for debugging but a huge security leak in production because it exposes database queries, settings, and path variables). It also runs the built-in development server's auto-reloader and serves static/media files automatically. In production (`DEBUG=False`), it returns a generic 500 error page, requires `ALLOWED_HOSTS` to be set, and disables automated static file serving.
+> **Answer**: When `DEBUG=True`, Django displays detailed error traceback pages to the client (useful for debugging but a huge security leak in production because it exposes database queries, settings, and path variables). It also runs the built-in development server's auto-reloader and serves static/media files automatically. In production (`DEBUG=False`), it returns a generic 500 error page, requires `ALLOWED_HOSTS` to be set, and disables automated static file serving.
 
-#### ✅ Day Checkpoint
+---
 
-Student shows the Django welcome page at `http://127.0.0.1:8000/`. Their `.env` contains `SECRET_KEY` and `DEBUG`. Running `git log --oneline` shows at least one commit. `git status` shows `.env` as untracked (not staged).
+#### 5. Daily Checkpoint & Wrap-up (5 min)
+* **Verification Criteria**:
+  - Student shows the Django welcome rocket page running locally at `http://127.0.0.1:8000/`.
+  - The `.env` file exists and contains `SECRET_KEY` and `DEBUG`.
+  - Running `git status` shows `.env` is untracked (not staged) and excluded.
+  - Running `git log --oneline` shows at least one commit.
 
 ---
 
 ### Day 2 – Core Models: Publisher, Game, GameKey
 
-**Goals:** Define the core data model and get it into the database.
+#### 📋 Teacher Prep & Classroom Setup
+1. **Pre-class Checklist**:
+   - Ensure the virtual environment is activated (`source .venv/bin/activate`).
+   - Have the Django dev server stopped or running in the background.
+   - Open `games/models.py` and `games/admin.py` in your IDE.
+2. **Prerequisites Checklist**:
+   - Students must have completed Day 1 (Django project scaffolded, custom `games` app created, and dev server working).
+3. **Required Material**:
+   - A diagram or whiteboard showing the database relationships:
+     `User (Django built-in) <1-to-1> Publisher <1-to-many> Game <1-to-many> GameKey <many-to-1 (optional)> User (owner)`
 
-`games/models.py`:
+#### 🎯 Learning Objectives
+By the end of this class, students will be able to:
+- Explain Django's ORM mental model (classes/attributes mapped to tables/columns).
+- Define relationships using `ForeignKey` and `OneToOneField`.
+- Apply cascading rules on relationships using `on_delete=models.CASCADE`.
+- Generate and run database migrations using `makemigrations` and `migrate`.
+- Register models with Django's administrative interface and manage data through the admin UI.
 
-```python
-from django.db import models
-from django.contrib.auth.models import User
+#### ⏱ Classroom Timeline (90 min)
+| Segment | Duration | Focus / Teacher Action |
+|---------|----------|------------------------|
+| **1. Hook & Big Picture**| 20 min | Discuss ORM mental models, design the entities, and draw relationship diagrams. |
+| **2. Key Concepts & Core Ideas** | 15 min | Define fields, relationship types, cascade deletion, and migrations. |
+| **3. Live Coding Walkthrough** | 40 min | Live-code the models, run database migrations, and configure administrative site. |
+| **4. Check for Understanding** | 10 min | Q&A on relationship choices, migrations, and model properties. |
+| **5. Class Wrap-up & Checkpoint** | 5 min | Verify models are editable in the admin UI. |
+
+---
+
+#### 🚀 Lecture Step-by-Step Delivery Plan
+
+##### 1. Hook & Big Picture (20 min)
+* **Teacher Action**: Draw an entity-relationship diagram on the board. Explain that before writing code or routing APIs, we must build a strong foundation: the database schema.
+* **ORM Mental Model**: Explain that Django models are Python classes, class attributes represent database columns, and instances of these classes represent database rows.
+* **Relationships**: Explain how our entities connect:
+  - **Publisher** has a one-to-one link to Django's built-in **User** (for logging in).
+  - **Game** belongs to a single **Publisher** (foreign key).
+  - **GameKey** belongs to a single **Game** (foreign key), and optionally has a **User** owner (when purchased).
+
+##### 2. Key Concepts & Core Ideas (15 min)
+Introduce these essential terms:
+* **ORM (Object-Relational Mapper)**: Bridges the gap between OOP in Python and Relational SQL databases (SQLite for dev, PostgreSQL for prod).
+* **`ForeignKey` vs `OneToOneField`**:
+  - `ForeignKey` establishes a one-to-many relationship (one publisher can release many games).
+  - `OneToOneField` enforces uniqueness (one user can represent only one publisher).
+* **`on_delete=models.CASCADE`**: When a parent object is deleted, all child objects referencing it are deleted. Contrast this with `models.SET_NULL` or `models.PROTECT`. Ask students: *"What happens to keys if we delete a game? Cascade makes sense here."*
+* **`null=True` vs `blank=True`**: `null` is database-level (allows database cells to be NULL), while `blank` is validation-level (allows empty inputs in forms/serializers).
+* **Migrations**: Explain migrations as a version-control system for the database schema. Emphasize that they must be generated first and then applied.
+
+---
+
+##### 3. Live Coding Walkthrough (40 min)
+
+###### Step 3.1: Defining the Models
+* **Explain**: Open `games/models.py`. We will define the three core models. Explain why `GameKey.owner` uses `null=True, blank=True` (keys exist before being sold and having an owner).
+* **Code**:
+  Modify `games/models.py`:
+  ```python
+  from django.db import models
+  from django.contrib.auth.models import User
 
 
-class Publisher(models.Model):
-    name = models.CharField(max_length=200)
-    webhook_url = models.URLField()
-    webhook_secret = models.CharField(max_length=64)
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+  class Publisher(models.Model):
+      name = models.CharField(max_length=200)
+      webhook_url = models.URLField()
+      webhook_secret = models.CharField(max_length=64)
+      user = models.OneToOneField(User, on_delete=models.CASCADE)
 
-    def __str__(self):
-        return self.name
-
-
-class Game(models.Model):
-    title = models.CharField(max_length=200)
-    publisher = models.ForeignKey(Publisher, on_delete=models.CASCADE)
-    price = models.DecimalField(max_digits=6, decimal_places=2)
-
-    def __str__(self):
-        return self.title
+      def __str__(self):
+          return self.name
 
 
-class GameKey(models.Model):
-    STATUS_CHOICES = [('active', 'Active'), ('expired', 'Expired')]
+  class Game(models.Model):
+      title = models.CharField(max_length=200)
+      publisher = models.ForeignKey(Publisher, on_delete=models.CASCADE)
+      price = models.DecimalField(max_digits=6, decimal_places=2)
 
-    key_string = models.CharField(max_length=50, unique=True)
-    game = models.ForeignKey(Game, on_delete=models.CASCADE)
-    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
-    expires_at = models.DateTimeField()
-    owner = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+      def __str__(self):
+          return self.title
 
-    def __str__(self):
-        return self.key_string
-```
 
-```bash
-python manage.py makemigrations
-python manage.py migrate
-```
+  class GameKey(models.Model):
+      STATUS_CHOICES = [('active', 'Active'), ('expired', 'Expired')]
 
-Register all models in `games/admin.py`:
+      key_string = models.CharField(max_length=50, unique=True)
+      game = models.ForeignKey(Game, on_delete=models.CASCADE)
+      status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+      expires_at = models.DateTimeField()
+      owner = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
 
-```python
-from django.contrib import admin
-from .models import Publisher, Game, GameKey
+      def __str__(self):
+          return self.key_string
+  ```
+* **Verify**: Run `python manage.py check` to ensure there are no syntax or configuration errors in the models.
+* **⚠️ Common Pitfalls**:
+  - **Missing `__str__` method**: Show students how the admin UI looks if `__str__` is omitted—it defaults to unhelpful strings like "Publisher object (1)".
+  - **Confusing `null` and `blank`**: Students often write `blank=True` but forget `null=True` on nullable database fields, which triggers database integrity errors when saving empty records.
 
-admin.site.register(Publisher)
-admin.site.register(Game)
-admin.site.register(GameKey)
-```
+###### Step 3.2: Database Migrations
+* **Explain**: Scan models for modifications and create schema migration instructions, then execute them.
+* **Code**:
+  ```bash
+  python manage.py makemigrations
+  python manage.py migrate
+  ```
+* **Verify**: Open the generated migration file (e.g., `games/migrations/0001_initial.py`) and read its contents to the class so they understand how Django translates models into schemas.
+* **⚠️ Common Pitfalls**:
+  - **Forgetting `'games'` app in `INSTALLED_APPS`**: If the app is missing from `settings.py`, `makemigrations` will report "No changes detected".
+  - **Running `migrate` before `makemigrations`**: Nothing will happen. Remind students of the two-step migration lifecycle.
 
-### 🎓 Instructor Teaching Plan
+###### Step 3.3: Registering Models in Django Admin
+* **Explain**: To inspect and manage our models, we will register them with Django's built-in administration panel.
+* **Code**:
+  Modify `games/admin.py`:
+  ```python
+  from django.contrib import admin
+  from .models import Publisher, Game, GameKey
 
-#### ⏱ Time Breakdown (90 min)
+  admin.site.register(Publisher)
+  admin.site.register(Game)
+  admin.site.register(GameKey)
+  ```
+* **Verify**: Create a superuser and log into the admin panel to test model registration:
+  ```bash
+  # Create admin credentials
+  python manage.py createsuperuser
+  ```
+  Run the server, navigate to `http://127.0.0.1:8000/admin`, log in, and ensure you can create/edit a `Publisher`, a `Game`, and a `GameKey` manually.
 
-| Segment | Duration | Activity |
-|---------|----------|----------|
-| ORM mental model | 20 min | Explain: Django models = Python classes = database tables. Draw the entity diagram: User ←→ Publisher ←→ Game ←→ GameKey. Discuss the relationships before writing code. |
-| Write models live | 25 min | Type out `Publisher`, `Game`, `GameKey` with students. Pause on each field type and explain the choice. |
-| Migrations deep dive | 15 min | Run `makemigrations`, open the generated file, read it aloud. Run `migrate`. Check with `python manage.py dbshell` or DB browser. Students should understand migrations are *versioned schema changes*, not magic. |
-| Django admin | 15 min | Register models, create a superuser, explore the admin. Create a sample Publisher and Game through the UI. |
-| Q&A + checkpoint | 15 min | Verify all 3 models visible and editable in admin. |
+---
 
-#### 💡 Key Concepts to Introduce
+#### 4. Check for Understanding (10 min)
 
-- **ORM = Object-Relational Mapper** — Python objects represent rows, class attributes represent columns.
-- **`ForeignKey` vs `OneToOneField`** — FK: one publisher can have many games (one-to-many). O2O: one user can have at most one publisher profile.
-- **`on_delete=CASCADE`** — deleting a Publisher deletes all their Games. Contrast with `SET_NULL` and `PROTECT`. Ask: "What should happen to GameKeys if we delete a Game?"
-- **`null=True` vs `blank=True`** — `null` is database-level (allows NULL in column), `blank` is validation-level (allows empty string in forms/serializers). Common combo: `null=True, blank=True` for optional fields.
-- **`choices`** — enforced at the Django layer, not at the database level. The DB stores the raw string `'active'`/`'expired'`.
-- **Migrations** — two steps: `makemigrations` (create the migration file) → `migrate` (apply it to the DB). The migration file should be committed to git.
-
-#### ⚠️ Common Mistakes to Address
-
-- **Missing `__str__`** — the admin shows "Publisher object (1)" everywhere without it. Add `__str__` first, make it a habit.
-- **Confusing `null` and `blank`** — students often add only `blank=True` for optional fields and then get database-level errors when saving.
-- **Forgetting `'games'` in `INSTALLED_APPS`** — `makemigrations` silently produces no output and students are confused. Teach: always check `INSTALLED_APPS` first.
-- **Running `migrate` without `makemigrations`** — nothing happens. Emphasize the two-step sequence.
-- **Editing migrations by hand** — discourage this. Always re-run `makemigrations` after changing models.
-
-#### ❓ Check for Understanding
-
-> "Why does `GameKey.owner` use `null=True, blank=True` but `GameKey.game` does not?"
+> **Question**: "Why does `GameKey.owner` use `null=True, blank=True` but `GameKey.game` does not?"
 >
-> **Answer:** `GameKey.owner` is optional because a game key can exist (e.g., pre-loaded by a publisher) before any user purchases it. Thus, the database field must allow `NULL` (`null=True`) and API/form validation must allow it to be empty (`blank=True`). Conversely, a `GameKey` must always belong to a specific game, so `GameKey.game` is mandatory and cannot be null.
+> **Answer**: `GameKey.owner` is optional because a game key can exist (e.g., pre-loaded by a publisher) before any user purchases it. Thus, the database field must allow `NULL` (`null=True`) and API/form validation must allow it to be empty (`blank=True`). Conversely, a `GameKey` must always belong to a specific game, so `GameKey.game` is mandatory and cannot be null.
 
-> "What's the difference between `makemigrations` and `migrate`? What does each file represent?"
+> **Question**: "What's the difference between `makemigrations` and `migrate`? What does each file represent?"
 >
-> **Answer:** `makemigrations` scans model definitions for changes and creates new, numbered migration files (e.g., `0001_initial.py`), which are blueprints describing *how* to modify the database schema. `migrate` actually executes those blueprints against the database, applying the changes to create/modify tables. The migration files represent versioned history of the schema and must be committed to git.
+> **Answer**: `makemigrations` scans model definitions for changes and creates new, numbered migration files (e.g., `0001_initial.py`), which are blueprints describing *how* to modify the database schema. `migrate` actually executes those blueprints against the database, applying the changes to create/modify tables. The migration files represent versioned history of the schema and must be committed to git.
 
-> "If we delete a `Publisher`, what happens to their `Game` records? What about their `GameKey` records?"
+> **Question**: "If we delete a `Publisher`, what happens to their `Game` records? What about their `GameKey` records?"
 >
-> **Answer:** Because `Game.publisher` uses `on_delete=models.CASCADE`, deleting a `Publisher` automatically cascades and deletes all related `Game` records. In turn, because `GameKey.game` also uses `on_delete=models.CASCADE`, deleting those `Game` records will automatically cascade and delete all associated `GameKey` records.
+> **Answer**: Because `Game.publisher` uses `on_delete=models.CASCADE`, deleting a `Publisher` automatically cascades and deletes all related `Game` records. In turn, because `GameKey.game` also uses `on_delete=models.CASCADE`, deleting those `Game` records will automatically cascade and delete all associated `GameKey` records.
 
-> "Why is `key_string` marked `unique=True`?"
+> **Question**: "Why is `key_string` marked `unique=True`?"
 >
-> **Answer:** A game key represents a single, unique digital asset. If it were not marked `unique=True`, the database could accidentally store duplicate key strings, leading to the same key being issued to multiple users, violating licensing rules and causing validation collisions.
+> **Answer**: A game key represents a single, unique digital asset. If it were not marked `unique=True`, the database could accidentally store duplicate key strings, leading to the same key being issued to multiple users, violating licensing rules and causing validation collisions.
 
-#### ✅ Day Checkpoint
+---
 
-`python manage.py migrate` completes with no errors. Student navigates to `/admin`, logs in, and can create a `Publisher`, a `Game` linked to it, and a `GameKey` linked to the game — all through the admin UI.
+#### 5. Daily Checkpoint & Wrap-up (5 min)
+* **Verification Criteria**:
+  - `python manage.py migrate` completes with no errors.
+  - Student is logged into the `/admin` interface.
+  - Student can create a `Publisher` record, a `Game` record, and a `GameKey` record successfully using the admin UI.
 
 ---
 
 ### Day 3 – DRF Basics: Game & Publisher APIs
 
-**Goals:** Expose the models via REST endpoints using DRF ViewSets and a router.
+#### 📋 Teacher Prep & Classroom Setup
+1. **Pre-class Checklist**:
+   - Ensure the virtual environment is active (`source .venv/bin/activate`).
+   - Run the Django development server (`python manage.py runserver`).
+   - Open a browser window ready to access the Django REST Framework browsable API at `http://127.0.0.1:8000/api/`.
+2. **Prerequisites Checklist**:
+   - Students must have completed Day 2 successfully (models created, migrated, and superuser configured).
+3. **Required Material**:
+   - Whiteboard or slide detailing HTTP Verbs (GET, POST, PATCH, PUT, DELETE) and how they correspond to CRUD operations.
 
-Add to `INSTALLED_APPS` in `settings.py`:
+#### 🎯 Learning Objectives
+By the end of this class, students will be able to:
+- Explain REST architecture basics and HTTP methods.
+- Define DRF Serializers to handle translation between JSON and Django database models.
+- Implement ModelSerializers and control data visibility (e.g., hiding secrets).
+- Create ModelViewSets to handle CRUD routes automatically.
+- Register endpoints with DRF's `DefaultRouter` and interact with the browsable API.
 
-```python
-INSTALLED_APPS = [
-    ...
-    'rest_framework',
-    'games',
-]
-```
+#### ⏱ Classroom Timeline (90 min)
+| Segment | Duration | Focus / Teacher Action |
+|---------|----------|------------------------|
+| **1. Hook & Big Picture** | 15 min | Define RESTful services. Compare standard Django views with Django REST Framework (DRF). |
+| **2. Key Concepts & Core Ideas** | 15 min | Explain Serializers as translators, ViewSets vs APIViews, and routers. |
+| **3. Live Coding Walkthrough** | 45 min | Configure settings, write serializers and viewsets, wire URLs, and test the endpoints. |
+| **4. Check for Understanding** | 10 min | Q&A on serialization validation, viewset mappings, and security exclusions. |
+| **5. Class Wrap-up & Checkpoint** | 5 min | Verify GET and POST requests are functional in the browsable API UI. |
 
-`games/serializers.py`:
+---
 
-```python
-from rest_framework import serializers
-from .models import Game, Publisher
+#### 🚀 Lecture Step-by-Step Delivery Plan
+
+##### 1. Hook & Big Picture (15 min)
+* **Teacher Action**: Ask students: *"How does a mobile app or a separate frontend website talk to our Django database?"* Explain that they cannot access database models directly. We must expose standard HTTP endpoints (REST APIs) returning JSON data.
+* **REST & DRF Overview**: Show how DRF streamlines this process:
+  - **Serializers**: Handle validation and translation of Python models to and from JSON.
+  - **ViewSets**: Standardize operations on resources (create, list, retrieve, update, delete).
+  - **Routers**: Generate consistent, predictable URLs automatically.
+
+##### 2. Key Concepts & Core Ideas (15 min)
+Introduce the core mechanics of DRF:
+* **Serializer = Translator**: Converts complex Django model querysets/instances into Python datatypes that can be rendered to JSON (serialization) and parses incoming JSON payload data into validated Python dictionaries (deserialization).
+* **`ModelSerializer`**: A shortcut class that auto-generates serializer fields matching the model fields.
+* **ViewSet vs APIView**:
+  - `APIView` requires manual handling of HTTP methods (e.g. implementing `get()` or `post()`).
+  - `ViewSet` groups standard CRUD operations (`list`, `create`, `retrieve`, `update`, `destroy`) into a single class.
+* **`DefaultRouter`**: Automatically generates clean URL patterns for all operations registered on a ViewSet.
+* **Browsable API**: A built-in DRF feature that provides a web-based client interface for testing API endpoints during development.
+
+---
+
+##### 3. Live Coding Walkthrough (45 min)
+
+###### Step 3.1: Enable Rest Framework
+* **Explain**: Register the DRF app and our custom `games` app in Django settings so Django loads them.
+* **Code**:
+  Add to `INSTALLED_APPS` in `gamekey_platform/settings.py`:
+  ```python
+  INSTALLED_APPS = [
+      ...
+      'rest_framework',
+      'games',
+  ]
+  ```
+
+###### Step 3.2: Writing Serializers
+* **Explain**: Create `games/serializers.py` to translate our models. Emphasize why we exclude `webhook_secret` in `PublisherSerializer`—never return webhook secret keys in public API responses.
+* **Code**:
+  Create `games/serializers.py`:
+  ```python
+  from rest_framework import serializers
+  from .models import Game, Publisher
 
 
-class GameSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Game
-        fields = '__all__'
+  class GameSerializer(serializers.ModelSerializer):
+      class Meta:
+          model = Game
+          fields = '__all__'
 
 
-class PublisherSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Publisher
-        exclude = ('webhook_secret',)  # never expose the secret
-```
+  class PublisherSerializer(serializers.ModelSerializer):
+      class Meta:
+          model = Publisher
+          exclude = ('webhook_secret',)  # never expose the secret
+  ```
+* **Verify**: Run `python manage.py check` to make sure the serializers do not have syntax or naming mistakes.
+* **⚠️ Common Pitfalls**:
+  - **Exposing sensitive fields**: Remind students that using `fields = '__all__'` on models containing secret credentials leaks data. Always use `exclude` or explicitly list fields when dealing with secrets.
 
-`games/viewsets.py`:
-
-```python
-from rest_framework import viewsets
-from .models import Game, Publisher
-from .serializers import GameSerializer, PublisherSerializer
-
-
-class GameViewSet(viewsets.ModelViewSet):
-    queryset = Game.objects.all()
-    serializer_class = GameSerializer
+###### Step 3.3: Creating ViewSets
+* **Explain**: Create `games/viewsets.py` to define the database queries and serializers that our endpoints will use.
+* **Code**:
+  Create `games/viewsets.py`:
+  ```python
+  from rest_framework import viewsets
+  from .models import Game, Publisher
+  from .serializers import GameSerializer, PublisherSerializer
 
 
-class PublisherViewSet(viewsets.ModelViewSet):
-    queryset = Publisher.objects.all()
-    serializer_class = PublisherSerializer
-```
+  class GameViewSet(viewsets.ModelViewSet):
+      queryset = Game.objects.all()
+      serializer_class = GameSerializer
 
-`gamekey_platform/urls.py`:
 
-```python
-from django.contrib import admin
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from games.viewsets import GameViewSet, PublisherViewSet
+  class PublisherViewSet(viewsets.ModelViewSet):
+      queryset = Publisher.objects.all()
+      serializer_class = PublisherSerializer
+  ```
+* **Verify**: Ensure the queryset and serializer classes are imported correctly.
+* **⚠️ Common Pitfalls**:
+  - **Missing queryset or serializer**: If either is missing on `ModelViewSet`, Django will throw an `AssertionError` during startup.
 
-router = DefaultRouter()
-router.register(r'games', GameViewSet)
-router.register(r'publishers', PublisherViewSet)
+###### Step 3.4: Wiring URLs via Router
+* **Explain**: Initialize DRF's `DefaultRouter`, register the viewsets, and include the generated routes in the primary Django URL configurations.
+* **Code**:
+  Modify `gamekey_platform/urls.py`:
+  ```python
+  from django.contrib import admin
+  from django.urls import path, include
+  from rest_framework.routers import DefaultRouter
+  from games.viewsets import GameViewSet, PublisherViewSet
 
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/', include(router.urls)),
-]
-```
+  router = DefaultRouter()
+  router.register(r'games', GameViewSet)
+  router.register(r'publishers', PublisherViewSet)
 
-### 🎓 Instructor Teaching Plan
+  urlpatterns = [
+      path('admin/', admin.site.urls),
+      path('api/', include(router.urls)),
+  ]
+  ```
+* **Verify**: Start the development server (`python manage.py runserver`), open `http://localhost:8000/api/` in your browser, and verify the DRF browsable API root page displays with links to `/api/games/` and `/api/publishers/`.
+* **⚠️ Common Pitfalls**:
+  - **`rest_framework` missing from INSTALLED_APPS**: The browsable API page will crash or render without CSS if DRF isn't registered in `settings.py`.
+  - **Forgetting `include(router.urls)`**: If you do not include the router's URLs inside `urlpatterns`, the registered routes won't match any requests.
 
-#### ⏱ Time Breakdown (90 min)
+---
 
-| Segment | Duration | Activity |
-|---------|----------|----------|
-| REST & DRF overview | 15 min | What is REST? Resources, HTTP verbs (GET/POST/PATCH/DELETE), status codes. What does DRF add on top of Django? Serializers for data validation + transformation, ViewSets for resource operations, Routers for automatic URL generation. |
-| Serializers | 20 min | Write `GameSerializer` and `PublisherSerializer`. Explain *why* we exclude `webhook_secret` from the publisher serializer — never expose secrets in API responses. Show `fields = '__all__'` first, then demonstrate the risk. |
-| ViewSets | 20 min | Write `GameViewSet` and `PublisherViewSet`. Compare ViewSet to a regular Django view: a ViewSet is one class that handles list, create, retrieve, update, destroy automatically. |
-| Router & URLs | 15 min | Register ViewSets with the router. Show what URLs the router generates (`/api/games/`, `/api/games/{id}/`). Browse the DRF web UI. |
-| Live testing | 10 min | Use curl or Postman/httpie to hit `GET /api/games/`, `POST /api/games/`, `GET /api/games/1/`. Read responses together. |
-| Q&A + checkpoint | 10 min | Verify browsable API works. |
+#### 4. Check for Understanding (10 min)
 
-#### 💡 Key Concepts to Introduce
-
-- **Serializer = translator** — converts a Django model instance into JSON (serialization) and JSON into a validated Python dict (deserialization). Not just for output — serializers also validate incoming data.
-- **`ModelSerializer`** — the shortcut. Reads the model's fields and generates the serializer automatically. `fields = '__all__'` includes every field; `exclude = (...)` removes specific ones.
-- **ViewSet vs APIView** — `APIView` maps one HTTP method to one method (`get`, `post`). A `ViewSet` maps the full CRUD lifecycle to one class (`list`, `create`, `retrieve`, `update`, `destroy`). The router wires these to URLs.
-- **`DefaultRouter`** — generates `/api/games/` (list + create) and `/api/games/{pk}/` (retrieve + update + delete) automatically. Also adds a browsable root at `/api/`.
-- **DRF browsable API** — great for development; shows a web form for POST requests. In production, disable it with `'DEFAULT_RENDERER_CLASSES': ['rest_framework.renderers.JSONRenderer']`.
-
-#### ⚠️ Common Mistakes to Address
-
-- **`'rest_framework'` not in `INSTALLED_APPS`** — the browsable API won't load, static CSS is missing. Common symptom: `DisallowedHost` or ugly unstyled pages.
-- **Exposing sensitive fields** — students use `fields = '__all__'` on `Publisher` and wonder why `webhook_secret` appears in the response. This is a teaching moment: always be explicit about what you expose.
-- **Forgetting to wire `include(router.urls)`** — `router.urls` is a list of URL patterns; it must be included in `urlpatterns`.
-- **ViewSet queryset not set** — if `queryset` is missing, DRF raises `AssertionError` about `basename`. Always set `queryset` or override `get_queryset()`.
-
-#### ❓ Check for Understanding
-
-> "What does a serializer do with incoming data before it reaches the database?"
+> **Question**: "What does a serializer do with incoming data before it reaches the database?"
 >
-> **Answer:** A serializer validates the structure and types of incoming data against defined field rules, checks for required fields, runs custom validation logic (e.g., checking if a value is valid), and parses the raw JSON input into a validated Python dictionary (`serializer.validated_data`).
+> **Answer**: A serializer validates the structure and types of incoming data against defined field rules, checks for required fields, runs custom validation logic (e.g., checking if a value is valid), and parses the raw JSON input into a validated Python dictionary (`serializer.validated_data`).
 
-> "What's the difference between `GET /api/games/` and `GET /api/games/1/`? Which ViewSet methods handle each?"
+> **Question**: "What's the difference between `GET /api/games/` and `GET /api/games/1/`? Which ViewSet methods handle each?"
 >
-> **Answer:** `GET /api/games/` retrieves a list of all games and is handled by the `list` method of `GameViewSet`. `GET /api/games/1/` retrieves the details of a single game with ID 1 and is handled by the `retrieve` method of `GameViewSet`.
+> **Answer**: `GET /api/games/` retrieves a list of all games and is handled by the `list` method of `GameViewSet`. `GET /api/games/1/` retrieves the details of a single game with ID 1 and is handled by the `retrieve` method of `GameViewSet`.
 
-> "Why might you want `fields = ('id', 'title', 'price')` instead of `'__all__'`?"
+> **Question**: "Why might you want `fields = ('id', 'title', 'price')` instead of `'__all__'`?"
 >
-> **Answer:** Explicitly defining fields improves security and API efficiency by ensuring that sensitive internal fields (like database flags, internal statuses, or relationship keys) are not leaked to the frontend, and reduces bandwidth by excluding unused fields.
+> **Answer**: Explicitly defining fields improves security and API efficiency by ensuring that sensitive internal fields (like database flags, internal statuses, or relationship keys) are not leaked to the frontend, and reduces bandwidth by excluding unused fields.
 
-> "What would happen if we forgot to exclude `webhook_secret` from the publisher serializer?"
+> **Question**: "What would happen if we forgot to exclude `webhook_secret` from the publisher serializer?"
 >
-> **Answer:** The `webhook_secret` would be serialized and returned in public GET/POST responses. This would allow anyone viewing the API output to obtain the secret, enabling them to forge webhook requests and make unauthorized deliveries appear authentic to the publisher's system.
+> **Answer**: The `webhook_secret` would be serialized and returned in public GET/POST responses. This would allow anyone viewing the API output to obtain the secret, enabling them to forge webhook requests and make unauthorized deliveries appear authentic to the publisher's system.
 
-#### ✅ Day Checkpoint
+---
 
-`GET /api/games/` returns `200 OK` with a JSON array (possibly empty). `POST /api/games/` with a valid body creates a game and returns `201 Created`. Student confirms `webhook_secret` does not appear in `GET /api/publishers/` responses.
+#### 5. Daily Checkpoint & Wrap-up (5 min)
+* **Verification Criteria**:
+  - Navigating to `GET /api/games/` returns `200 OK` with a JSON array.
+  - Sending a `POST` request to `/api/games/` with a valid payload (title, publisher, price) successfully creates a record and returns `201 Created`.
+  - Navigating to `/api/publishers/` returns the publisher list and does NOT contain `webhook_secret` in the JSON response payload.
 
 ---
 
 ### Day 4 – Authentication & Permissions
 
-**Goals:** Lock down the API with token auth and owner-level permissions.
+#### 📋 Teacher Prep & Classroom Setup
+1. **Pre-class Checklist**:
+   - Ensure the virtual environment is active (`source .venv/bin/activate`).
+   - Run the Django dev server (`python manage.py runserver`).
+   - Have Postman, curl, or HTTPie open to make HTTP requests with custom headers.
+2. **Prerequisites Checklist**:
+   - Students must have completed Day 3 successfully (DRF viewsets and routers configured, browsable API accessible).
+3. **Required Material**:
+   - Whiteboard or slide mapping the difference between Authentication (who you are) and Authorization (what you can do).
 
-Add to `INSTALLED_APPS`:
+#### 🎯 Learning Objectives
+By the end of this class, students will be able to:
+- Explain different API authentication schemes (Session, Token, JWT) and why stateless Token Auth fits REST APIs.
+- Configure DRF Token Authentication globally.
+- Create custom object-level permission classes in DRF to protect resources from unauthorized modifications.
+- Build a user registration endpoint that hashes passwords securely and returns authentication tokens.
+- Make authenticated API requests using custom request headers.
 
-```python
-'rest_framework.authtoken',
-```
+#### ⏱ Classroom Timeline (90 min)
+| Segment | Duration | Focus / Teacher Action |
+|---------|----------|------------------------|
+| **1. Hook & Big Picture** | 15 min | Compare API authentication strategies. Explain why stateless token-based auth is best for REST backends. |
+| **2. Key Concepts & Core Ideas** | 15 min | Distinguish authentication vs authorization. Explain DRF request lifecycle and permission checks. |
+| **3. Live Coding Walkthrough** | 45 min | Configure Token Auth, create custom permissions, write the register view, and test the endpoints. |
+| **4. Check for Understanding** | 10 min | Q&A on object-level permissions, password hashing, and token header formats. |
+| **5. Class Wrap-up & Checkpoint** | 5 min | Verify registration generates a token and unauthenticated writes are blocked. |
 
-```bash
-python manage.py migrate
-```
+---
 
-Update `settings.py`:
+#### 🚀 Lecture Step-by-Step Delivery Plan
 
-```python
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
-    ],
-}
-```
+##### 1. Hook & Big Picture (15 min)
+* **Teacher Action**: Ask: *"Right now, anyone in the world can run a POST request to add a game to our store. How do we secure our API so only authenticated publishers can edit games, and normal users can only view them?"*
+* **Authentication Options**: Compare standard session authentication (cookies/browser-based) with token authentication (header-based) and JSON Web Tokens (JWT). Explain that for stateless web APIs, header-based Token Auth is simple, secure, and robust.
 
-`games/permissions.py` — custom permission so publishers can only edit their own games:
+##### 2. Key Concepts & Core Ideas (15 min)
+Introduce these essential terms:
+* **Authentication vs Authorization**:
+  - *Authentication* answers: *"Who are you?"* (handled by TokenAuthentication).
+  - *Authorization* answers: *"What are you allowed to do?"* (handled by PermissionClasses).
+* **`IsAuthenticatedOrReadOnly`**: A global permission class that allows unauthenticated read operations (`GET`, `HEAD`, `OPTIONS`) but restricts write operations (`POST`, `PATCH`, `DELETE`) to authenticated users.
+* **`BasePermission`**: The base class for custom permission logic. Override `has_permission` for request-level checks, `has_object_permission` for instance-level checks. Both must return `True` for access to proceed.
+* **`SAFE_METHODS`**: Read-only HTTP methods: `GET`, `HEAD`, `OPTIONS`.
+* **Password Hashing**: Emphasize that storing plaintext passwords is a major security vulnerability. Django hashes passwords using PBKDF2.
 
-```python
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+---
+
+##### 3. Live Coding Walkthrough (45 min)
+
+###### Step 3.1: Enable Token Authentication
+* **Explain**: Register Django REST Framework's authtoken module and run migrations to create the token tables.
+* **Code**:
+  Add `'rest_framework.authtoken'` to `INSTALLED_APPS` in `gamekey_platform/settings.py`:
+  ```python
+  INSTALLED_APPS = [
+      ...
+      'rest_framework',
+      'rest_framework.authtoken',
+      'games',
+  ]
+  ```
+  Run the database migrations:
+  ```bash
+  python manage.py migrate
+  ```
+* **Verify**: Confirm that the table `authtoken_token` is successfully created in the database (you can check using the Django Admin dashboard or dbshell).
+* **⚠️ Common Pitfalls**:
+  - **Missing migrations**: If you configure Token Auth but don't run `migrate`, Django will throw a database error (`no such table: authtoken_token`) on the first auth request.
+
+###### Step 3.2: Configure Global Auth settings
+* **Explain**: Update Django settings to enforce Token Authentication and `IsAuthenticatedOrReadOnly` permissions across all endpoints by default.
+* **Code**:
+  Add or update `REST_FRAMEWORK` settings in `gamekey_platform/settings.py`:
+  ```python
+  REST_FRAMEWORK = {
+      'DEFAULT_AUTHENTICATION_CLASSES': [
+          'rest_framework.authentication.TokenAuthentication',
+      ],
+      'DEFAULT_PERMISSION_CLASSES': [
+          'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+      ],
+  }
+  ```
+* **Verify**: Try sending a `POST` request to `http://localhost:8000/api/games/` without an authentication header and verify that the API returns a `401 Unauthorized` status.
+
+###### Step 3.3: Creating Custom Object-Level Permissions
+* **Explain**: We want to make sure that a publisher can only update or delete *their own* games. We will create a custom permission class that checks the owner of the publisher profile.
+* **Code**:
+  Create `games/permissions.py`:
+  ```python
+  from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 
-class IsOwnerOrReadOnly(BasePermission):
-    def has_object_permission(self, request, view, obj):
-        if request.method in SAFE_METHODS:
-            return True
-        return obj.publisher.user == request.user
-```
-
-Add a user registration endpoint in `games/views.py`:
-
-```python
-from django.contrib.auth.models import User
-from rest_framework.authtoken.models import Token
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from rest_framework import status
+  class IsOwnerOrReadOnly(BasePermission):
+      def has_object_permission(self, request, view, obj):
+          if request.method in SAFE_METHODS:
+              return True
+          return obj.publisher.user == request.user
+  ```
+  Now apply this custom permission to the `GameViewSet` by updating `games/viewsets.py`:
+  ```python
+  from rest_framework import viewsets
+  from .models import Game, Publisher
+  from .serializers import GameSerializer, PublisherSerializer
+  from .permissions import IsOwnerOrReadOnly
 
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def register(request):
-    username = request.data.get('username')
-    password = request.data.get('password')
-    if not username or not password:
-        return Response({'error': 'Username and password required.'}, status=status.HTTP_400_BAD_REQUEST)
-    user = User.objects.create_user(username=username, password=password)
-    token, _ = Token.objects.get_or_create(user=user)
-    return Response({'token': token.key}, status=status.HTTP_201_CREATED)
-```
+  class GameViewSet(viewsets.ModelViewSet):
+      queryset = Game.objects.all()
+      serializer_class = GameSerializer
+      permission_classes = [IsOwnerOrReadOnly]
 
-Add to `urls.py`:
 
-```python
-from games.views import register
-urlpatterns += [path('api/register/', register)]
-```
+  class PublisherViewSet(viewsets.ModelViewSet):
+      queryset = Publisher.objects.all()
+      serializer_class = PublisherSerializer
+  ```
+* **Verify**: Ensure that the custom permission class imports and compiles without errors.
+* **⚠️ Common Pitfalls**:
+  - **`has_object_permission` not firing on lists**: Remind students that `has_object_permission` is only called for detail views (`retrieve`, `update`, `destroy`). It is not called for `list` or `create` requests.
 
-### 🎓 Instructor Teaching Plan
+###### Step 3.4: Building the User Registration Endpoint
+* **Explain**: Create a view that allows new users to sign up, hashes their passwords, and immediately generates and returns an auth token. Since unregistered users don't have a token, we must explicitly bypass global permissions using `@permission_classes([AllowAny])`.
+* **Code**:
+  Add the registration function to `games/views.py`:
+  ```python
+  from django.contrib.auth.models import User
+  from rest_framework.authtoken.models import Token
+  from rest_framework.decorators import api_view, permission_classes
+  from rest_framework.permissions import AllowAny
+  from rest_framework.response import Response
+  from rest_framework import status
 
-#### ⏱ Time Breakdown (90 min)
 
-| Segment | Duration | Activity |
-|---------|----------|----------|
-| Auth concepts | 15 min | Compare session auth (cookie-based, browser), token auth (header-based, API), and JWT (self-contained). Explain why token auth is the right choice for a stateless API. |
-| Token auth setup | 15 min | Add `rest_framework.authtoken` to `INSTALLED_APPS`, run `migrate`, update `REST_FRAMEWORK` settings. Generate a token via `manage.py shell` to verify. |
-| Custom permission class | 20 min | Write `IsOwnerOrReadOnly`. Explain `has_permission` (request-level) vs `has_object_permission` (object-level). Explain `SAFE_METHODS`. Apply to `GameViewSet`. |
-| Registration endpoint | 20 min | Write the `register` view together. Explain `create_user` (hashes password) vs `create` (stores plaintext — never do this). Show `Token.objects.get_or_create`. |
-| End-to-end auth test | 10 min | Register a user → get token → use token in `Authorization: Token ...` header → hit a protected endpoint. Try without the header → confirm 401. |
-| Q&A + checkpoint | 10 min | |
+  @api_view(['POST'])
+  @permission_classes([AllowAny])
+  def register(request):
+      username = request.data.get('username')
+      password = request.data.get('password')
+      if not username or not password:
+          return Response({'error': 'Username and password required.'}, status=status.HTTP_400_BAD_REQUEST)
+      user = User.objects.create_user(username=username, password=password)
+      token, _ = Token.objects.get_or_create(user=user)
+      return Response({'token': token.key}, status=status.HTTP_201_CREATED)
+  ```
+  Now wire the URL endpoint in `gamekey_platform/urls.py`:
+  ```python
+  from django.contrib import admin
+  from django.urls import path, include
+  from rest_framework.routers import DefaultRouter
+  from games.viewsets import GameViewSet, PublisherViewSet
+  from games.views import register
 
-#### 💡 Key Concepts to Introduce
+  router = DefaultRouter()
+  router.register(r'games', GameViewSet)
+  router.register(r'publishers', PublisherViewSet)
 
-- **Authentication vs Authorization** — authentication asks "who are you?", authorization asks "what are you allowed to do?". Token auth handles the first; permission classes handle the second.
-- **`IsAuthenticatedOrReadOnly`** (global default) — unauthenticated users can `GET`; only authenticated users can `POST/PATCH/DELETE`. Good starting default for a public catalog.
-- **`BasePermission`** — the base class for all DRF permissions. Override `has_permission` for request-level checks, `has_object_permission` for instance-level checks. Both must return `True` for access to proceed.
-- **`SAFE_METHODS = ('GET', 'HEAD', 'OPTIONS')`** — read-only HTTP methods. The pattern "allow reads for all, writes only for owner" is idiomatic DRF.
-- **`User.objects.create_user()`** — hashes the password via Django's password hasher. `create()` skips hashing. Always use `create_user` for real users.
-- **`@permission_classes([AllowAny])`** — explicitly bypasses the global default for a specific view. Required for registration — the user doesn't have a token yet.
+  urlpatterns = [
+      path('admin/', admin.site.urls),
+      path('api/', include(router.urls)),
+      path('api/register/', register),
+  ]
+  ```
+* **Verify**: Send a `POST` request to `http://localhost:8000/api/register/` with a JSON payload containing `username` and `password`. Verify that it returns `201 Created` along with a hex token.
+* **⚠️ Common Pitfalls**:
+  - **Using `create()` instead of `create_user()`**: If you use `User.objects.create(...)`, Django stores the password in plaintext, meaning the user can never log in because Django's auth system expects a hashed password. Always use `create_user()`.
+  - **Wrong Authorization Header Format**: DRF Token Auth expects the header format `Authorization: Token <token>` (with a space and the word `Token`). Confuses developers used to the `Bearer <token>` format.
 
-#### ⚠️ Common Mistakes to Address
+---
 
-- **Using `create()` instead of `create_user()`** — password stored in plaintext, authentication will always fail.
-- **Missing `rest_framework.authtoken` migration** — `Token` model doesn't exist yet, Django raises `ProgrammingError`. Always run `migrate` after adding the app.
-- **Wrong `Authorization` header format** — must be `Token <token>` with a space (not `Bearer`, not `token`). Confuses students coming from JWT backgrounds.
-- **`has_object_permission` not called for list actions** — DRF only calls `has_object_permission` when the view retrieves a specific object (retrieve, update, destroy). It's never called for `list` or `create`.
-- **`@permission_classes` not overriding the global default** — students add `@permission_classes([AllowAny])` but forget `@api_view(['POST'])`, so Django treats it as a regular function view and DRF never runs.
+#### 4. Check for Understanding (10 min)
 
-#### ❓ Check for Understanding
-
-> "What's the difference between `has_permission` and `has_object_permission`? Give an example where you'd use each."
+> **Question**: "What's the difference between `has_permission` and `has_object_permission`? Give an example where you'd use each."
 >
-> **Answer:** `has_permission` checks if the user has access to the endpoint in general (checked at the start of the request, e.g., "Is the user logged in?"). `has_object_permission` is only called during detail views (retrieve/update/delete) to check access to a specific database object (e.g., "Is the logged-in user the owner of this game record?").
+> **Answer**: `has_permission` checks if the user has access to the endpoint in general (checked at the start of the request, e.g., "Is the user logged in?"). `has_object_permission` is only called during detail views (retrieve/update/delete) to check access to a specific database object (e.g., "Is the logged-in user the owner of this game record?").
 
-> "Why do we use `create_user()` instead of `create()` when making User objects?"
+> **Question**: "Why do we use `create_user()` instead of `create()` when making User objects?"
 >
-> **Answer:** `create_user()` is a helper method on Django's User manager that handles password hashing using a secure algorithm (like PBKDF2). Using `create()` directly would write the password to the database as plaintext, exposing it to database administrators or security breaches, and preventing the user from logging in since Django's auth system expects a hashed password.
+> **Answer**: `create_user()` is a helper method on Django's User manager that handles password hashing using a secure algorithm (like PBKDF2). Using `create()` directly would write the password to the database as plaintext, exposing it to database administrators or security breaches, and preventing the user from logging in since Django's auth system expects a hashed password.
 
-> "If we didn't add `@permission_classes([AllowAny])` to the register view, what would happen when a new user tries to register?"
+> **Question**: "If we didn't add `@permission_classes([AllowAny])` to the register view, what would happen when a new user tries to register?"
 >
-> **Answer:** The registration request would be blocked by the global permission default (`IsAuthenticatedOrReadOnly`), returning a `401 Unauthorized` or `403 Forbidden` response. Since a new user does not have a token yet, they would be unable to register.
+> **Answer**: The registration request would be blocked by the global permission default (`IsAuthenticatedOrReadOnly`), returning a `401 Unauthorized` or `403 Forbidden` response. Since a new user does not have a token yet, they would be unable to register.
 
-> "What does `IsAuthenticatedOrReadOnly` allow vs deny? Is it the right default for this API?"
+> **Question**: "What does `IsAuthenticatedOrReadOnly` allow vs deny? Is it the right default for this API?"
 >
-> **Answer:** It allows anyone (authenticated or anonymous) to perform safe, read-only HTTP methods (`GET`, `HEAD`, `OPTIONS`), but restricts writing methods (`POST`, `PUT`, `PATCH`, `DELETE`) to authenticated users. It is an excellent default for this API because it keeps the game catalog publicly browsable while securing modifications and purchases.
+> **Answer**: It allows anyone (authenticated or anonymous) to perform safe, read-only HTTP methods (`GET`, `HEAD`, `OPTIONS`), but restricts writing methods (`POST`, `PUT`, `PATCH`, `DELETE`) to authenticated users. It is an excellent default for this API because it keeps the game catalog publicly browsable while securing modifications and purchases.
 
-#### ✅ Day Checkpoint
+---
 
-`POST /api/register/` returns a token. `POST /api/games/` without the token returns `401`. `POST /api/games/` with `Authorization: Token <token>` returns `201`. `PATCH /api/games/1/` with a token from a *different* user returns `403`.
+#### 5. Daily Checkpoint & Wrap-up (5 min)
+* **Verification Criteria**:
+  - `POST /api/register/` returns a JSON response containing an authentication token.
+  - `POST /api/games/` without an `Authorization` header returns a `401 Unauthorized` error.
+  - `POST /api/games/` with the header `Authorization: Token <token>` successfully creates the game and returns `201 Created`.
+  - `PATCH /api/games/1/` with a token belonging to a user *other* than the owner of the game's publisher returns `403 Forbidden`.
 
 ---
 
 ### Day 5 – Orders API: Buying a Game Key
 
-**Goals:** Build the purchase flow — atomically assign a key and set its expiry.
+#### 📋 Teacher Prep & Classroom Setup
+1. **Pre-class Checklist**:
+   - Verify the virtual environment is active (`source .venv/bin/activate`).
+   - Run the Django dev server (`python manage.py runserver`).
+   - Open `games/models.py`, `games/views.py`, and `gamekey_platform/urls.py` in your IDE.
+2. **Prerequisites Checklist**:
+   - Students must have completed Day 4 successfully (Token Authentication is configured and the registration endpoint `/api/register/` is working).
+3. **Required Material**:
+   - Whiteboard or screen to draw the timeline of a race condition:
+     * Request A starts → Queries active keys → Finds Key 1 (unowned)
+     * Request B starts → Queries active keys → Finds Key 1 (unowned)
+     * Request A updates Key 1 owner to User A and saves
+     * Request B updates Key 1 owner to User B and saves (overwriting or double-allocating!)
 
-Add `Order` and `OrderItem` to `games/models.py`:
+#### 🎯 Learning Objectives
+By the end of this class, students will be able to:
+- Explain what race conditions are and how they arise in concurrent applications.
+- Use Django's `transaction.atomic()` context manager to bundle operations.
+- Apply pessimistic locking using Django ORM's `select_for_update()`.
+- Define models to represent orders and line items.
+- Generate cryptographically random strings using Python's `uuid` library.
+- Build a secure transactional order endpoint using Django view functions.
 
-```python
-class Order(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    purchased_at = models.DateTimeField(auto_now_add=True)
+#### ⏱ Classroom Timeline (90 min)
+| Segment | Duration | Focus / Teacher Action |
+|---------|----------|------------------------|
+| **1. Hook & Big Picture** | 20 min | Pose the double-allocation race condition problem. Draw the timeline on the board. |
+| **2. Key Concepts & Core Ideas** | 15 min | Explain transactions, pessimistic locking (`select_for_update`), and datetime arithmetic. |
+| **3. Live Coding Walkthrough** | 40 min | Write the order models, migrate, write the transactional API endpoint, wire URLs, and test. |
+| **4. Check for Understanding** | 10 min | Q&A on transactional rollbacks, locking scope, and UUID vs serial IDs. |
+| **5. Class Wrap-up & Checkpoint** | 5 min | Verify successful key purchase via Postman and database state changes. |
+
+---
+
+#### 🚀 Lecture Step-by-Step Delivery Plan
+
+##### 1. Hook & Big Picture (20 min)
+* **Teacher Action**: Open the diagram board. Present this scenario: *"Two users hit the 'Buy' button for the last remaining key of a game at the exact same millisecond. If our server handles them concurrently, how do we prevent both users from being sold the same key?"*
+* **Race Condition Motivation**: Draw the concurrent query flow. Explain that without locking, both requests read the database, find the key unowned, assign it to their respective user, and write back. User A gets a key, and User B gets the exact same key. This is a business catastrophe.
+
+##### 2. Key Concepts & Core Ideas (15 min)
+Introduce these database principles:
+* **`transaction.atomic()`**: Standardizes database transactions. Ensures that all SQL queries executed inside the context manager succeed together, or roll back completely if an error occurs.
+* **Pessimistic Locking via `select_for_update()`**: Forces a row-level database lock on the matching records. Any other database query attempting to lock or edit those same rows must wait until our transaction completes.
+* **`auto_now_add=True`**: Django field option that automatically sets the field value to the current datetime when the model is first created.
+* **`uuid4()`**: Universally Unique Identifier. Explain that using sequential serial numbers (like `1`, `2`, `3`) for digital license keys makes them trivial to guess and steal. We use random UUIDs instead.
+* **Timezone-aware arithmetic**: Why we use `django.utils.timezone.now()` instead of Python's standard `datetime.now()` to prevent timezone conflicts.
+
+---
+
+##### 3. Live Coding Walkthrough (40 min)
+
+###### Step 3.1: Defining Order and OrderItem Models
+* **Explain**: In order to track key purchases, we need an `Order` model representing the cart/invoice, and an `OrderItem` representing the specific keys purchased.
+* **Code**:
+  Add `Order` and `OrderItem` models to `games/models.py`:
+  ```python
+  class Order(models.Model):
+      user = models.ForeignKey(User, on_delete=models.CASCADE)
+      purchased_at = models.DateTimeField(auto_now_add=True)
 
 
-class OrderItem(models.Model):
-    order = models.ForeignKey(Order, on_delete=models.CASCADE)
-    game_key = models.OneToOneField(GameKey, on_delete=models.CASCADE)
-```
+  class OrderItem(models.Model):
+      order = models.ForeignKey(Order, on_delete=models.CASCADE)
+      game_key = models.OneToOneField(GameKey, on_delete=models.CASCADE)
+  ```
+  Run the migrations:
+  ```bash
+  python manage.py makemigrations
+  python manage.py migrate
+  ```
+* **Verify**: Check that migrations apply cleanly. You can register these models in `games/admin.py` for visibility:
+  ```python
+  from .models import Order, OrderItem
+  admin.site.register(Order)
+  admin.site.register(OrderItem)
+  ```
 
-`games/views.py` — `POST /api/orders/`:
+###### Step 3.2: Writing the Order Creation View
+* **Explain**: Create the `create_order` API endpoint in `games/views.py`. This endpoint checks if a key is pre-loaded for the game. If it is, it locks the key using `select_for_update()`, updates its owner, and returns it. If no key is pre-loaded, it generates a fresh one on the fly. All of this runs inside an atomic transaction block.
+* **Code**:
+  Add the import statements and the `create_order` function to `games/views.py`:
+  ```python
+  import uuid
+  from datetime import timedelta
+  from django.utils import timezone
+  from django.db import transaction
+  from rest_framework.decorators import api_view, permission_classes
+  from rest_framework.permissions import IsAuthenticated
+  from rest_framework.response import Response
+  from rest_framework import status
+  from .models import Game, GameKey, Order, OrderItem
 
-```python
-import uuid
-from datetime import timedelta
-from django.utils import timezone
-from django.db import transaction
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
-from .models import Game, GameKey, Order, OrderItem
 
+  @api_view(['POST'])
+  @permission_classes([IsAuthenticated])
+  def create_order(request):
+      game_id = request.data.get('game_id')
+      if not game_id:
+          return Response({'error': 'game_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def create_order(request):
-    game_id = request.data.get('game_id')
-    if not game_id:
-        return Response({'error': 'game_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+      try:
+          game = Game.objects.get(id=game_id)
+      except Game.DoesNotExist:
+          return Response({'error': 'Game not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-    try:
-        game = Game.objects.get(id=game_id)
-    except Game.DoesNotExist:
-        return Response({'error': 'Game not found.'}, status=status.HTTP_404_NOT_FOUND)
+      with transaction.atomic():
+          # Use select_for_update to prevent race conditions
+          existing_key = (
+              GameKey.objects.select_for_update()
+              .filter(game=game, status='active', owner__isnull=True)
+              .first()
+          )
 
-    with transaction.atomic():
-        # Use select_for_update to prevent race conditions
-        existing_key = (
-            GameKey.objects.select_for_update()
-            .filter(game=game, status='active', owner__isnull=True)
-            .first()
-        )
+          if existing_key:
+              # Assign existing unowned key
+              key = existing_key
+              key.owner = request.user
+              key.save()
+          else:
+              # Generate a fresh key
+              key = GameKey.objects.create(
+                  key_string=str(uuid.uuid4()).upper(),
+                  game=game,
+                  status='active',
+                  expires_at=timezone.now() + timedelta(days=30),
+                  owner=request.user,
+              )
 
-        if existing_key:
-            # Assign existing unowned key
-            key = existing_key
-            key.owner = request.user
-            key.save()
-        else:
-            # Generate a fresh key
-            key = GameKey.objects.create(
-                key_string=str(uuid.uuid4()).upper(),
-                game=game,
-                status='active',
-                expires_at=timezone.now() + timedelta(days=30),
-                owner=request.user,
-            )
+          order = Order.objects.create(user=request.user)
+          OrderItem.objects.create(order=order, game_key=key)
 
-        order = Order.objects.create(user=request.user)
-        OrderItem.objects.create(order=order, game_key=key)
+      return Response({
+          'order_id': order.id,
+          'game': game.title,
+          'key': key.key_string,
+          'expires_at': key.expires_at,
+      }, status=status.HTTP_201_CREATED)
+  ```
+* **Verify**: Check for syntax errors. Make sure that all models are imported correctly.
+* **⚠️ Common Pitfalls**:
+  - **Omitting `transaction.atomic()`**: If the database transaction is not atomic, the key could be locked but a crash later in the request (e.g. failing to create `OrderItem`) would leave the key assigned to the user without completing the order.
+  - **Missing `owner__isnull=True` constraint**: If you forget to filter out keys that already have an owner, you will re-assign existing sold keys.
 
-    return Response({
-        'order_id': order.id,
-        'game': game.title,
-        'key': key.key_string,
-        'expires_at': key.expires_at,
-    }, status=status.HTTP_201_CREATED)
-```
+###### Step 3.3: Wiring the Endpoint URL
+* **Explain**: Connect the order creation view to `/api/orders/` in Django routing.
+* **Code**:
+  Add `create_order` to `gamekey_platform/urls.py`:
+  ```python
+  from games.views import register, create_order
 
-Wire URL: `path('api/orders/', create_order)` in `urls.py`.
+  urlpatterns = [
+      path('admin/', admin.site.urls),
+      path('api/', include(router.urls)),
+      path('api/register/', register),
+      path('api/orders/', create_order),
+  ]
+  ```
+* **Verify**: Send a POST request to `http://localhost:8000/api/orders/` with a valid `game_id` and the auth header `Authorization: Token <your_token>`. Verify it returns `201 Created` with the order information.
+* **⚠️ Common Pitfalls**:
+  - **Missing authentication**: Forgetting to pass the `Authorization` header on the Postman/curl request will cause DRF to return a `401 Unauthorized` block.
 
-### 🎓 Instructor Teaching Plan
+---
 
-#### ⏱ Time Breakdown (90 min)
+#### 4. Check for Understanding (10 min)
 
-| Segment | Duration | Activity |
-|---------|----------|----------|
-| Race condition motivation | 20 min | Before writing any code, pose the problem: two users hit POST /api/orders/ at the exact same millisecond for the same game. Without locks, they both read the same available key and both get assigned it — a key is sold twice. Draw the timeline on a whiteboard. |
-| Add Order & OrderItem models | 15 min | Add models, run `makemigrations` + `migrate`. Register in admin. |
-| Walk through `create_order` view | 30 min | Go line by line. Emphasize `transaction.atomic()`, `select_for_update()`, the `owner__isnull=True` filter. Explain why we generate a fresh key if no pre-loaded keys exist. |
-| Wire URL & live test | 15 min | Add URL, test with Postman. Create a game through admin, then buy it. Show the key and expiry in the response. |
-| Q&A + checkpoint | 10 min | |
-
-#### 💡 Key Concepts to Introduce
-
-- **`transaction.atomic()`** — everything inside the `with` block executes as one DB transaction. If any exception is raised, all changes are rolled back.
-- **`select_for_update()`** — places a row-level lock on the selected rows. Any other transaction trying to lock the same rows will wait until this transaction completes. This is *pessimistic locking*.
-- **Race condition** — a bug that depends on the timing of concurrent operations. Hard to reproduce in development (single user), catastrophic in production (many users).
-- **`auto_now_add=True`** on `Order.purchased_at` — automatically sets to `timezone.now()` on creation. Read-only after creation. Compare with `auto_now=True` (updates on every save).
-- **`uuid4()`** for key generation — cryptographically random, collision probability negligible. Better than auto-increment integers for keys that users will see.
-- **`timedelta(days=30)`** — adding a duration to a datetime. Explain `timezone.now()` vs `datetime.now()` — always use `timezone.now()` in Django to stay timezone-aware.
-
-#### ⚠️ Common Mistakes to Address
-
-- **Not using `transaction.atomic()`** — the key is locked but if an exception happens after the lock, the key status is left in an inconsistent state.
-- **Filtering with `status='active'` but not `owner__isnull=True`** — would return keys that are already owned by someone else.
-- **Not capturing keys before `update()`** — in Day 6/8, students will update the queryset with `.update(status='expired')`, which clears the queryset. Foreshadow: always materialize (`list()`) before bulk-updating.
-- **Returning the raw `key_string` field vs a formatted version** — fine for now, but flag that in production you'd never expose this in a GET endpoint (only return once, at purchase time).
-- **Missing `@permission_classes([IsAuthenticated])`** — anyone could buy keys without registering.
-
-#### ❓ Check for Understanding
-
-> "What would go wrong without `select_for_update()`?"
+> **Question**: "What would go wrong without `select_for_update()`?"
 >
-> **Answer:** Without `select_for_update()`, a race condition could occur if two concurrent requests query the database at the same time for an available key. Both would find the same unowned key, assign it to their respective user, and write it back. This results in the same game key being sold twice (double-allocation).
+> **Answer**: Without `select_for_update()`, a race condition could occur if two concurrent requests query the database at the same time for an available key. Both would find the same unowned key, assign it to their respective user, and write it back. This results in the same game key being sold twice (double-allocation).
 
-> "When does `transaction.atomic()` roll back? What triggers a rollback?"
+> **Question**: "When does `transaction.atomic()` roll back? What triggers a rollback?"
 >
-> **Answer:** It rolls back when an unhandled exception is raised within the context manager block. If any error (like a database constraint violation or a Python runtime exception) occurs before the block exits successfully, all changes made to the database within that block are discarded.
+> **Answer**: It rolls back when an unhandled exception is raised within the context manager block. If any error (like a database constraint violation or a Python runtime exception) occurs before the block exits successfully, all changes made to the database within that block are discarded.
 
-> "Why do we filter with `owner__isnull=True`? What does `owner` represent for a key that no one has purchased yet?"
+> **Question**: "Why do we filter with `owner__isnull=True`? What does `owner` represent for a key that no one has purchased yet?"
 >
-> **Answer:** We filter for `owner__isnull=True` to retrieve a key that has not yet been bought by any user. For an unpurchased key, `owner` is `None` (represented as `NULL` in the database). Filtering this way prevents re-allocating an already purchased key.
+> **Answer**: We filter for `owner__isnull=True` to retrieve a key that has not yet been bought by any user. For an unpurchased key, `owner` is `None` (represented as `NULL` in the database). Filtering this way prevents re-allocating an already purchased key.
 
-> "Why use `uuid4()` to generate the key string instead of, say, `GameKey.objects.count() + 1`?"
+> **Question**: "Why use `uuid4()` to generate the key string instead of, say, `GameKey.objects.count() + 1`?"
 >
-> **Answer:** `uuid4()` generates cryptographically random, unique identifiers that cannot be guessed by users, preventing attackers from predicting and stealing other game keys. Using `count() + 1` is sequential, exposing the total volume of keys and making them trivial to guess and exploit.
+> **Answer**: `uuid4()` generates cryptographically random, unique identifiers that cannot be guessed by users, preventing attackers from predicting and stealing other game keys. Using `count() + 1` is sequential, exposing the total volume of keys and making them trivial to guess and exploit.
 
-#### ✅ Day Checkpoint
+---
 
-`POST /api/orders/` with a valid `game_id` and auth token returns `201` with `order_id`, `game`, `key`, and `expires_at`. `POST /api/orders/` without a token returns `401`. `POST /api/orders/` with a non-existent `game_id` returns `404`.
+#### 5. Daily Checkpoint & Wrap-up (5 min)
+* **Verification Criteria**:
+  - Sending a POST request to `/api/orders/` with a valid `game_id` and authentication token returns `201 Created`.
+  - The JSON payload contains the generated key, `order_id`, and `expires_at` (set to 30 days in the future).
+  - Submitting a POST request without a token returns `401 Unauthorized`.
+  - Submitting a POST request with an invalid `game_id` returns `404 Not Found`.
 
 ---
 
 ### Day 6 – Detecting Expired Keys (Management Command)
 
-**Goals:** Write a management command that marks expired keys and can be scheduled via cron.
+#### 📋 Teacher Prep & Classroom Setup
+1. **Pre-class Checklist**:
+   - Ensure the virtual environment is active (`source .venv/bin/activate`).
+   - Run the Django dev server (`python manage.py runserver`).
+   - Open your project directory in the IDE, ready to create new nested directories and python scripts.
+2. **Prerequisites Checklist**:
+   - Students must have completed Day 5 successfully (Order database tables migrated, and order creation view operational).
+3. **Required Material**:
+   - Whiteboard or slide showing standard command line task scheduling setups (such as cron tabs or background runners).
 
-Create the file structure:
+#### 🎯 Learning Objectives
+By the end of this class, students will be able to:
+- Explain Django custom management commands and their use cases.
+- Scaffold the specific package structure required for custom Django commands.
+- Subclass `BaseCommand` to write command line utilities.
+- Perform high-performance database batch updates using the ORM `.update()` method.
+- Construct timezone-aware database queries using the `__lte` (less than or equal to) lookup.
+- Configure cron jobs to run custom commands on a schedule.
 
-```
-games/
-  management/
-    __init__.py
-    commands/
+#### ⏱ Classroom Timeline (90 min)
+| Segment | Duration | Focus / Teacher Action |
+|---------|----------|------------------------|
+| **1. Hook & Big Picture** | 15 min | Define background tasks. Explain when to use management commands vs views or tasks. |
+| **2. Key Concepts & Core Ideas** | 15 min | Explain `BaseCommand` methods, stdout redirection, batch ORM operations, and timezone filters. |
+| **3. Live Coding Walkthrough** | 40 min | Create directories and files, implement `check_expired_keys` logic, run manually, and discuss cron configurations. |
+| **4. Check for Understanding** | 10 min | Q&A on stdout vs print, `.update()` side effects, and crontab syntax. |
+| **5. Class Wrap-up & Checkpoint** | 5 min | Verify expired keys are successfully processed by running the command in the terminal. |
+
+---
+
+#### 🚀 Lecture Step-by-Step Delivery Plan
+
+##### 1. Hook & Big Picture (15 min)
+* **Teacher Action**: Ask students: *"So far, we have built APIs that run when a user makes a request (like buying a key). But who updates a key when it expires? Does the user have to request an endpoint to expire it? No, the system must check in the background automatically."*
+* **Management Commands**: Explain that Django commands are scripts that can be invoked via `python manage.py [command]`. They are perfect for background scripts triggered by the OS scheduler (like cron).
+
+##### 2. Key Concepts & Core Ideas (15 min)
+Introduce these command line concepts:
+* **`BaseCommand`**: The base class for all Django CLI scripts. Custom commands must subclass it and implement a `handle()` method.
+* **Stdout and Stderr Redirection**: Why commands must print output using `self.stdout.write()` instead of standard Python `print()`. It allows output filtering and unit testing verification.
+* **`self.style.SUCCESS()`**: Colorizes terminal logs (e.g. green for success, red for errors) for better visual feedback.
+* **Bulk Database Updates**: Contrast looping over matching rows and calling `.save()` (creates `N` SQL queries) with `.update()` (creates `1` SQL query).
+* **Timezone-aware datetime lookups**: Why we use `timezone.now()` is mandatory when querying timezone-aware fields, and how `expires_at__lte` translates to SQL `expires_at <= NOW()`.
+
+---
+
+##### 3. Live Coding Walkthrough (40 min)
+
+###### Step 3.1: Scaffolding the Directory Structure
+* **Explain**: Django scans directories to discover custom commands. We must create a specific nested folder layout under our custom app. Emphasize that every directory must contain an empty `__init__.py` file so Python treats them as packages.
+* **Code**:
+  Create the folder tree in the terminal:
+  ```
+  games/
+    management/
       __init__.py
-      check_expired_keys.py
-```
+      commands/
+        __init__.py
+        check_expired_keys.py
+  ```
+* **Verify**: Confirm that both `__init__.py` files are created.
+* **⚠️ Common Pitfalls**:
+  - **Missing `__init__.py`**: If either package initialization script is missing, Django will fail to register the command, returning `Unknown command: 'check_expired_keys'`.
 
-`games/management/commands/check_expired_keys.py`:
+###### Step 3.2: Implementing the Command Logic
+* **Explain**: Create `games/management/commands/check_expired_keys.py`. Write a command class that queries all active keys whose expiration datetime is in the past, changes their status to `expired`, and prints a count of affected keys.
+* **Code**:
+  Write the following content inside `games/management/commands/check_expired_keys.py`:
+  ```python
+  from django.core.management.base import BaseCommand
+  from django.utils import timezone
+  from games.models import GameKey
 
-```python
-from django.core.management.base import BaseCommand
-from django.utils import timezone
-from games.models import GameKey
 
+  class Command(BaseCommand):
+      help = 'Mark active keys whose expiry has passed as expired.'
 
-class Command(BaseCommand):
-    help = 'Mark active keys whose expiry has passed as expired.'
+      def handle(self, *args, **options):
+          expired_keys = GameKey.objects.filter(
+              expires_at__lte=timezone.now(),
+              status='active'
+          )
+          count = expired_keys.update(status='expired')
+          self.stdout.write(self.style.SUCCESS(f'Expired {count} keys.'))
+  ```
+* **Verify**: Ensure the file compiles without syntax errors.
 
-    def handle(self, *args, **options):
-        expired_keys = GameKey.objects.filter(
-            expires_at__lte=timezone.now(),
-            status='active'
-        )
-        count = expired_keys.update(status='expired')
-        self.stdout.write(self.style.SUCCESS(f'Expired {count} keys.'))
-```
+###### Step 3.3: Manual CLI Testing
+* **Explain**: We will manually trigger a key expiration. Log into the Django Admin dashboard and create or modify a `GameKey` record so that its `expires_at` value is set to one hour in the past, and its status is set to `active`. Then, run the command.
+* **Code**:
+  Execute the management command:
+  ```bash
+  python manage.py check_expired_keys
+  ```
+* **Verify**: Check the console output. It should output a success message (e.g. `Expired 1 keys.`). Reload the Admin page and verify the status of the expired key has changed to `Expired`.
+* **⚠️ Common Pitfalls**:
+  - **Using `datetime.now()` instead of `timezone.now()`**: If you use naive Python datetimes, Django will raise a `TypeError` due to comparing offset-naive and offset-aware datetimes.
+  - **Queryset caching after updates**: Remind students that `.update()` modifies the rows in the database, but does not update active Python model objects in memory. If we reference the objects inside a cached queryset after calling `.update()`, they will still show the old status.
 
-```bash
-# Test manually
-python manage.py check_expired_keys
-```
+###### Step 3.4: Scheduling in Production via Cron
+* **Explain**: To run this script every 15 minutes automatically on our production Linux server, we would add a line to our system crontab file pointing to the virtualenv python interpreter.
+* **Code**:
+  Open crontab config (via `crontab -e`) and add:
+  ```cron
+  */15 * * * * /path/to/.venv/bin/python /path/to/manage.py check_expired_keys
+  ```
+* **Verify**: Discuss the cron parameters: `*/15` means every 15 minutes, followed by hour, day of month, month, and day of week wildcards.
 
-To schedule in production, add to crontab:
+---
 
-```cron
-*/15 * * * * /path/to/.venv/bin/python /path/to/manage.py check_expired_keys
-```
+#### 4. Check for Understanding (10 min)
 
-### 🎓 Instructor Teaching Plan
-
-#### ⏱ Time Breakdown (90 min)
-
-| Segment | Duration | Activity |
-|---------|----------|----------|
-| Management commands overview | 15 min | What are management commands? When are they the right tool vs. a scheduled job vs. a cron script vs. a Celery task? Examples: `migrate`, `collectstatic`, `createsuperuser`. These are Django's built-in admin scripts — we can write our own. |
-| File structure creation | 10 min | Create `management/`, `management/__init__.py`, `management/commands/`, `management/commands/__init__.py`. Emphasize: both `__init__.py` files are required. Common mistake: missing one of them. |
-| Write the command | 25 min | Walk through `BaseCommand`, `help`, `handle()`, `self.stdout.write()`, `self.style.SUCCESS()`. Explain `.update()` as a bulk DB operation vs looping and calling `.save()`. |
-| Test manually | 15 min | Create a `GameKey` in admin with `expires_at` in the past. Run `python manage.py check_expired_keys`. Verify status changes in admin. |
-| Cron scheduling | 15 min | Show the cron syntax. Discuss: cron runs on one server — what if the server goes down? (Preview: Celery Beat solves this, but cron is fine for the bootcamp scope.) |
-| Q&A + checkpoint | 10 min | |
-
-#### 💡 Key Concepts to Introduce
-
-- **`BaseCommand`** — the base class for all management commands. `handle()` is the entry point; `help` is the description shown in `manage.py help`.
-- **`self.stdout.write()` vs `print()`** — management commands should use `self.stdout` so the output can be captured and redirected (e.g., in tests via `call_command`).
-- **`self.style.SUCCESS()` / `.ERROR()` / `.WARNING()`** — colorizes terminal output. Only applies when running in a terminal (not captured output).
-- **Bulk update: `.update()`** — a single `UPDATE ... WHERE ...` SQL statement. Far more efficient than loading each object into Python and calling `.save()`. Trade-off: `save()` triggers model signals; `.update()` does not.
-- **Timezone-aware datetimes** — `timezone.now()` returns a timezone-aware datetime. If `expires_at` were timezone-naive, the `__lte` comparison would fail. Always use `timezone.now()` in Django.
-- **`expires_at__lte=timezone.now()`** — Django ORM field lookup: "less than or equal to now", i.e., "already expired".
-
-#### ⚠️ Common Mistakes to Address
-
-- **Missing `__init__.py` files** — Django won't discover the command. The error is cryptic (`Unknown command: 'check_expired_keys'`). Teach students to check the directory structure first.
-- **Using `.save()` in a loop** — works but generates N SQL queries. For 1000 expired keys, that's 1000 UPDATE statements vs one. Make the performance case.
-- **Timezone-naive comparisons** — if a student uses `datetime.now()` (from the `datetime` module, not Django's `timezone`), they get a `TypeError` when comparing with a timezone-aware `expires_at`.
-- **The queryset-after-update problem** — after `expired_keys.update(status='expired')`, the queryset is "stale" — the objects in Python still have `status='active'`. If you iterate after `.update()`, you get the pre-update values. (This will be critical in Day 8.)
-
-#### ❓ Check for Understanding
-
-> "Why do we use `self.stdout.write()` instead of `print()` inside a management command?"
+> **Question**: "Why do we use `self.stdout.write()` instead of `print()` inside a management command?"
 >
-> **Answer:** Using `self.stdout.write()` is best practice because it integrates with Django's internal logging systems and output redirection. In testing, it allows the output to be intercepted and asserted on (using `call_command`), whereas `print()` writes directly to the standard system stdout, making it harder to test or suppress.
+> **Answer**: Using `self.stdout.write()` is best practice because it integrates with Django's internal logging systems and output redirection. In testing, it allows the output to be intercepted and asserted on (using `call_command`), whereas `print()` writes directly to the standard system stdout, making it harder to test or suppress.
 
-> "What's the performance difference between `.update()` and looping + `.save()`? Are there situations where you'd prefer `.save()` anyway?"
+> **Question**: "What's the performance difference between `.update()` and looping + `.save()`? Are there situations where you'd prefer `.save()` anyway?"
 >
-> **Answer:** `.update()` executes a single SQL `UPDATE` statement in the database, which is extremely fast and efficient for bulk operations. Looping and calling `.save()` executes a separate SQL query for each record (N queries), which is slow. However, you would prefer `.save()` if you need to trigger model `save()` overrides, pre/post-save signals, or validation, which `.update()` bypasses.
+> **Answer**: `.update()` executes a single SQL `UPDATE` statement in the database, which is extremely fast and efficient for bulk operations. Looping and calling `.save()` executes a separate SQL query for each record (N queries), which is slow. However, you would prefer `.save()` if you need to trigger model `save()` overrides, pre/post-save signals, or validation, which `.update()` bypasses.
 
-> "What does `expires_at__lte=timezone.now()` translate to in SQL?"
+> **Question**: "What does `expires_at__lte=timezone.now()` translate to in SQL?"
 >
-> **Answer:** It translates to a `WHERE` clause: `WHERE expires_at <= 'CURRENT_TIMESTAMP_VALUE'`. This filters for records where the expiration datetime is less than or equal to the current time.
+> **Answer**: It translates to a `WHERE` clause: `WHERE expires_at <= 'CURRENT_TIMESTAMP_VALUE'`. This filters for records where the expiration datetime is less than or equal to the current time.
 
-> "If we want this command to run every 15 minutes automatically, what are our options?"
+> **Question**: "If we want this command to run every 15 minutes automatically, what are our options?"
 >
-> **Answer:** 1) Setup a system-level cron job that executes the command through the virtualenv python. 2) Use a Celery Beat task that runs the management command (or its logic) on a schedule. 3) Use cloud-specific schedulers (like Render Cron Jobs or AWS EventBridge) to trigger the command.
+> **Answer**: 1) Setup a system-level cron job that executes the command through the virtualenv python. 2) Use a Celery Beat task that runs the management command (or its logic) on a schedule. 3) Use cloud-specific schedulers (like Render Cron Jobs or AWS EventBridge) to trigger the command.
 
-#### ✅ Day Checkpoint
+---
 
-Student creates a `GameKey` in admin with `expires_at` set to one hour ago and `status='active'`. They run `python manage.py check_expired_keys` and see the success message. Refreshing admin shows `status='expired'`.
+#### 5. Daily Checkpoint & Wrap-up (5 min)
+* **Verification Criteria**:
+  - The `check_expired_keys.py` script is placed under `games/management/commands/`.
+  - Creating a key with a past expiration date and running `python manage.py check_expired_keys` runs successfully.
+  - The script prints a green confirmation message to the terminal.
+  - The database records are updated from `active` to `expired` successfully.
 
 ---
 
 ### Day 7 – Webhook Fundamentals (Synchronous)
 
-**Goals:** Understand webhook mechanics — payload signing with HMAC, HTTP delivery, and the downsides of doing it synchronously.
+#### 📋 Teacher Prep & Classroom Setup
+1. **Pre-class Checklist**:
+   - Ensure the virtual environment is active (`source .venv/bin/activate`).
+   - Have the Django dev server stopped or running in the background.
+   - Open a browser page to `https://webhook.site` to get a temporary test URL.
+   - Open `games/webhooks.py` and `games/management/commands/check_expired_keys.py` in your IDE.
+2. **Prerequisites Checklist**:
+   - Students must have completed Day 6 successfully (Management command structured and working locally to expire keys).
+3. **Required Material**:
+   - Whiteboard or slide detailing the HTTP polling vs. webhook callback model, and the HMAC signing algorithm:
+     `HMAC(webhook_secret, JSON_body) = Signature`
 
-Extend the management command with a synchronous webhook sender:
+#### 🎯 Learning Objectives
+By the end of this class, students will be able to:
+- Explain the concept of Webhooks (HTTP callbacks) and contrast them with polling.
+- Implement cryptographic payload signing using HMAC-SHA256.
+- Enforce deterministic JSON serialization using `sort_keys=True` in `json.dumps()`.
+- Use the `requests` library to make synchronous POST requests with custom timeouts and headers.
+- Identify the core limitations of synchronous HTTP calls in management commands.
 
-`games/webhooks.py`:
+#### ⏱ Classroom Timeline (90 min)
+| Segment | Duration | Focus / Teacher Action |
+|---------|----------|------------------------|
+| **1. Hook & Big Picture** | 20 min | Explain the webhooks model. Contrast polling vs. event-driven callbacks. |
+| **2. Key Concepts & Core Ideas** | 20 min | Explain payload verification, HMAC, constant-time comparison, and JSON key sorting. |
+| **3. Live Coding Walkthrough** | 30 min | Write the synchronous webhook helper, integrate it with the management command, and test. |
+| **4. Discussion & Limitations** | 10 min | Analyze the failures of synchronous webhooks (blocking, timeout delays, no retry engine). |
+| **5. Check for Understanding** | 10 min | Q&A on security signatures, response codes, and sync blockages. |
 
-```python
-import hmac
-import hashlib
-import json
-import requests
+---
 
+#### 🚀 Lecture Step-by-Step Delivery Plan
 
-def send_expiry_webhook(publisher, game_key_str, game_title, expired_at):
-    payload = {
-        "event": "game_key.expired",
-        "game_key": game_key_str,
-        "game_title": game_title,
-        "expired_at": expired_at.isoformat(),
-    }
+##### 1. Hook & Big Picture (20 min)
+* **Teacher Action**: Contrast Polling vs Webhooks using a real-world analogy: *"Imagine checking your physical mailbox every 5 minutes to see if a package arrived (polling) versus having a delivery person ring your doorbell when it arrives (webhook). Webhooks are push notifications for APIs."*
+* **Security Risk**: Explain that since any client can send a POST request to the publisher's public webhook URL, the publisher needs a way to guarantee the request actually came from our marketplace. We solve this using cryptographic payload signing.
 
-    secret = publisher.webhook_secret.encode()
-    body = json.dumps(payload, sort_keys=True).encode()
-    signature = hmac.new(secret, body, hashlib.sha256).hexdigest()
+##### 2. Key Concepts & Core Ideas (20 min)
+Introduce these webhook security and network concepts:
+* **HMAC-SHA256**: Hash-based Message Authentication Code. Both systems share a secret. We sign the payload bytes with this secret, producing a signature header. The publisher recalculates the signature using the same secret and matches them.
+* **`sort_keys=True` in JSON**: JSON objects are unordered maps. If keys are serialized in different orders on the sender and receiver, the raw byte sequences will differ, causing the HMAC signatures to mismatch. Sorting keys makes serialization deterministic.
+* **`hmac.compare_digest()`**: A utility that compares digests in constant time. This prevents timing attacks (where attackers deduce correct signature bytes by measuring tiny variations in execution time).
+* **Outbound Timeouts**: Why we must always set a timeout (e.g. `timeout=5`) when calling external services. Without a timeout, a hanging remote server will cause our command line process to block indefinitely.
+* **`raise_for_status()`**: A method that raises an HTTP error if the server returns a `4xx` or `5xx` error code.
 
-    headers = {
-        "Content-Type": "application/json",
-        "X-Signature": f"sha256={signature}",
-    }
+---
 
-    try:
-        response = requests.post(publisher.webhook_url, json=payload, headers=headers, timeout=5)
-        response.raise_for_status()
-    except Exception as e:
-        print(f"[Webhook] Delivery failed for publisher {publisher.id}: {e}")
-```
+##### 3. Live Coding Walkthrough (30 min)
 
-Updated `check_expired_keys.py` using sync delivery:
-
-```python
-from django.core.management.base import BaseCommand
-from django.utils import timezone
-from games.models import GameKey
-from games.webhooks import send_expiry_webhook
+###### Step 3.1: Implementing the Webhook Sender
+* **Explain**: Create `games/webhooks.py`. We will write a helper function that constructs the expiry event payload, signs it using HMAC-SHA256, sets the custom headers, and dispatches the synchronous POST request.
+* **Code**:
+  Create `games/webhooks.py`:
+  ```python
+  import hmac
+  import hashlib
+  import json
+  import requests
 
 
-class Command(BaseCommand):
-    help = 'Mark expired keys and notify publishers synchronously.'
+  def send_expiry_webhook(publisher, game_key_str, game_title, expired_at):
+      payload = {
+          "event": "game_key.expired",
+          "game_key": game_key_str,
+          "game_title": game_title,
+          "expired_at": expired_at.isoformat(),
+      }
 
-    def handle(self, *args, **options):
-        expired_keys = GameKey.objects.select_related('game__publisher').filter(
-            expires_at__lte=timezone.now(),
-            status='active'
-        )
-        count = expired_keys.update(status='expired')
+      secret = publisher.webhook_secret.encode()
+      body = json.dumps(payload, sort_keys=True).encode()
+      signature = hmac.new(secret, body, hashlib.sha256).hexdigest()
 
-        for key in GameKey.objects.filter(status='expired').select_related('game__publisher'):
-            send_expiry_webhook(key.game.publisher, key.key_string, key.game.title, key.expires_at)
+      headers = {
+          "Content-Type": "application/json",
+          "X-Signature": f"sha256={signature}",
+      }
 
-        self.stdout.write(f'Expired {count} keys (sync webhooks sent).')
-```
+      try:
+          response = requests.post(publisher.webhook_url, json=payload, headers=headers, timeout=5)
+          response.raise_for_status()
+      except Exception as e:
+          print(f"[Webhook] Delivery failed for publisher {publisher.id}: {e}")
+  ```
+* **Verify**: Check that the module imports compile without syntax errors.
+* **⚠️ Common Pitfalls**:
+  - **Type errors with secrets**: Explain that `hmac.new()` requires bytes, not strings. Both the `secret` and the `body` must be `.encode()`ed to bytes before hashing.
 
-**Discussion points:**
-- Synchronous HTTP calls block the management command thread
-- A slow or unavailable publisher endpoint delays all subsequent notifications
-- No retry logic — a failed delivery is silently lost
-- → Solution: move webhook delivery to an async task queue (Day 8)
+###### Step 3.2: Updating the Management Command
+* **Explain**: Modify `check_expired_keys.py` to trigger the synchronous webhook sender for every key we mark as expired.
+* **Code**:
+  Update `games/management/commands/check_expired_keys.py`:
+  ```python
+  from django.core.management.base import BaseCommand
+  from django.utils import timezone
+  from games.models import GameKey
+  from games.webhooks import send_expiry_webhook
 
-### 🎓 Instructor Teaching Plan
 
-#### ⏱ Time Breakdown (90 min)
+  class Command(BaseCommand):
+      help = 'Mark expired keys and notify publishers synchronously.'
 
-| Segment | Duration | Activity |
-|---------|----------|----------|
-| What is a webhook? | 20 min | Contrast webhooks with polling. Real-world examples: GitHub fires a webhook when a PR is merged; Stripe fires one when a payment succeeds. Draw the pub/sub flow: publisher registers a URL → our system fires HTTP POST when something happens → publisher handles it. |
-| HMAC signing | 20 min | Why sign? Because anyone can POST to the publisher's webhook URL. HMAC lets the publisher verify the payload came from us and wasn't tampered with. Walk through the algorithm: `secret + payload → SHA256 digest`. Show `sort_keys=True` and why it matters for reproducibility. |
-| Write `webhooks.py` | 20 min | Code the synchronous sender together. Test with [webhook.site](https://webhook.site) — a free endpoint that logs every request. Students should see the payload arrive. |
-| Update management command | 10 min | Integrate sync sender. Run manually. Observe blocking behavior (if webhook.site is slow, the command waits). |
-| Discussion: sync limitations | 10 min | Go through the 3 bullet points at the bottom of Day 7. Collect student ideas on how to fix each. Preview: Day 8 solves all three with Celery. |
-| Q&A + checkpoint | 10 min | |
+      def handle(self, *args, **options):
+          expired_keys = GameKey.objects.select_related('game__publisher').filter(
+              expires_at__lte=timezone.now(),
+              status='active'
+          )
+          count = expired_keys.update(status='expired')
 
-#### 💡 Key Concepts to Introduce
+          for key in GameKey.objects.filter(status='expired').select_related('game__publisher'):
+              send_expiry_webhook(key.game.publisher, key.key_string, key.game.title, key.expires_at)
 
-- **Webhook = HTTP callback** — instead of the subscriber polling "has anything changed?", the publisher pushes "something changed!" to a pre-registered URL. Push > pull for latency and efficiency.
-- **HMAC-SHA256** — Hash-based Message Authentication Code. Both parties share a secret. The sender computes `HMAC(secret, payload)` and sends it as a header. The receiver recomputes it and compares — if they match, the payload is authentic and untampered.
-- **`sort_keys=True` in `json.dumps()`** — JSON object key order is not guaranteed. If the receiver serializes the same data differently (different key order), the signature won't match. `sort_keys=True` makes the serialization deterministic.
-- **`hmac.compare_digest()`** — constant-time comparison, not `==`. Prevents timing attacks where an attacker could determine the correct signature byte by byte by measuring response time.
-- **`requests.post(..., timeout=5)`** — always set a timeout on outbound HTTP calls. Without it, your process can hang forever if the publisher's server is slow or down.
-- **`raise_for_status()`** — raises `HTTPError` for 4xx/5xx responses. Without it, a `500` from the publisher looks like success.
+          self.stdout.write(f'Expired {count} keys (sync webhooks sent).')
+  ```
+* **Verify**:
+  - Open `https://webhook.site` in a browser and copy the unique URL.
+  - Create a publisher in your Django admin panel and paste this URL into their `webhook_url` field.
+  - Expire a key in admin (by setting `expires_at` in the past and status to `active`).
+  - Run `python manage.py check_expired_keys`.
+  - Check the `webhook.site` logs to confirm that the HTTP POST request arrived with the correct JSON body and the `X-Signature` header.
 
-#### ⚠️ Common Mistakes to Address
+---
 
-- **`hmac.new()` vs `hmac.HMAC()`** — Python's `hmac` module uses `hmac.new()` (older API) or `hmac.HMAC()` (Python 3.10+). Both work; be consistent. Common bug: mixing them.
-- **Not encoding strings to bytes** — `hmac.new(secret, body, ...)` requires `bytes`. `secret.encode()` and `body` (already bytes from `.encode()`) — forgetting either raises `TypeError`.
-- **Not handling exceptions** — if `requests.post()` raises a `ConnectionError` (publisher server is down), the whole management command crashes without processing the other keys. Wrap in `try/except`.
-- **No timeout on `requests.post()`** — if the publisher's server never responds, the management command hangs indefinitely. `timeout=5` is a reasonable default.
-- **Reusing `payload` dict** — if you modify `payload` after signing (e.g., to add extra fields), the signature no longer matches. Serialize and sign at the same point.
+#### 4. Discussion & Limitations (10 min)
+* **Teacher Action**: Open a discussion on the problems with this synchronous approach:
+  1. **Thread Blocking**: The entire script blocks during the HTTP call.
+  2. **Cascading Slowness**: If one publisher's server is slow, the script takes longer, delaying webhooks for all subsequent publishers.
+  3. **No Resiliency (Retries)**: If a publisher's server is down (connection error), the webhook is lost forever.
+  * *Preview: Explain that tomorrow we will solve these three issues using an asynchronous task queue (Celery + Redis).*
 
-#### ❓ Check for Understanding
+---
 
-> "A publisher claims they received a webhook from us but the payload was tampered with. How does HMAC protect against this?"
+#### 5. Check for Understanding (10 min)
+
+> **Question**: "A publisher claims they received a webhook from us but the payload was tampered with. How does HMAC protect against this?"
 >
-> **Answer:** HMAC uses a shared secret to generate a cryptographic signature of the request body. If any character in the payload is altered during transit, the receiver's computed signature will not match the `X-Signature` header, revealing that the payload was modified and should be rejected.
+> **Answer**: HMAC uses a shared secret to generate a cryptographic signature of the request body. If any character in the payload is altered during transit, the receiver's computed signature will not match the `X-Signature` header, revealing that the payload was modified and should be rejected.
 
-> "Why do we pass `sort_keys=True` to `json.dumps()`? What could go wrong without it?"
+> **Question**: "Why do we pass `sort_keys=True` to `json.dumps()`? What could go wrong without it?"
 >
-> **Answer:** JSON keys are unordered. If we don't sort keys, the serialization format might change (e.g. dictionary keys serialized in a different order), resulting in a different byte sequence. This would produce a different HMAC signature, causing verification to fail even if the content remains identical.
+> **Answer**: JSON keys are unordered. If we don't sort keys, the serialization format might change (e.g. dictionary keys serialized in a different order), resulting in a different byte sequence. This would produce a different HMAC signature, causing verification to fail even if the content remains identical.
 
-> "What happens to the management command if the publisher's server is down and we're making synchronous HTTP calls?"
+> **Question**: "What happens to the management command if the publisher's server is down and we're making synchronous HTTP calls?"
 >
-> **Answer:** The management command thread will block, waiting for the HTTP request to timeout (e.g. 5 seconds per request). If many keys expired for that publisher, or multiple publishers are down, the script will take a very long time to complete and could cause other pending updates to stall.
+> **Answer**: The management command thread will block, waiting for the HTTP request to timeout (e.g. 5 seconds per request). If many keys expired for that publisher, or multiple publishers are down, the script will take a very long time to complete and could cause other pending updates to stall.
 
-> "What's the difference between a 4xx and 5xx response from the publisher's webhook endpoint? Should we retry both?"
+> **Question**: "What's the difference between a 4xx and 5xx response from the publisher's webhook endpoint? Should we retry both?"
 >
-> **Answer:** A `4xx` response represents a client error (e.g., `400 Bad Request` or `404 Not Found`), suggesting our payload is invalid or the endpoint is misconfigured; retrying will likely fail again, so we shouldn't retry. A `5xx` response represents a server error (e.g., `500 Internal Server Error` or `503 Service Unavailable`), suggesting temporary publisher outage; we should retry these as the server might recover.
+> **Answer**: A `4xx` response represents a client error (e.g., `400 Bad Request` or `404 Not Found`), suggesting our payload is invalid or the endpoint is misconfigured; retrying will likely fail again, so we shouldn't retry. A `5xx` response represents a server error (e.g., `500 Internal Server Error` or `503 Service Unavailable`), suggesting temporary publisher outage; we should retry these as the server might recover.
 
-#### ✅ Day Checkpoint
+---
 
-Student uses [webhook.site](https://webhook.site) as the publisher's `webhook_url`. After running `python manage.py check_expired_keys`, the webhook.site log shows the POST request with the correct JSON body and `X-Signature` header. The student can manually verify the HMAC in a Python shell.
+#### 6. Daily Checkpoint & Wrap-up (5 min)
+* **Verification Criteria**:
+  - The `send_expiry_webhook` function is implemented in `games/webhooks.py`.
+  - Running `python manage.py check_expired_keys` dispatches an HTTP POST request to the publisher's webhook URL.
+  - The HTTP request header contains a valid `X-Signature` starting with `sha256=`.
+  - The webhook payload arrives at `webhook.site` successfully.
 
 ---
 
 ### Day 8 – Async Webhooks with Celery
 
-**Goals:** Move webhook delivery off the main thread using Celery + Redis, add automatic retries, and log every delivery attempt.
+#### 📋 Teacher Prep & Classroom Setup
+1. **Pre-class Checklist**:
+   - Ensure you have Docker running on your system.
+   - Run the Redis server in a container (`docker run -d -p 6379:6379 redis:7-alpine`).
+   - Open a browser window ready to access the Django Admin panel.
+   - Prepare two separate terminal tabs: one for running the management command, and one for running the Celery worker daemon.
+2. **Prerequisites Checklist**:
+   - Students must have completed Day 7 successfully (Synchronous webhook sending working with `requests.post`).
+3. **Required Material**:
+   - Whiteboard or slide showing the task queue broker architecture:
+     `Producer (Management Command) → Message Broker (Redis Queue) → Worker (Celery Daemon) → database (Logs)`
+   - Compare to a restaurant ticket system: the waiter (producer) drops tickets on the rail (broker), and the cook (worker) processes them asynchronously.
+
+#### 🎯 Learning Objectives
+By the end of this class, students will be able to:
+- Explain the role of a message broker (Redis) and a task runner (Celery) in async applications.
+- Configure Celery inside a Django project environment.
+- Create a `WebhookDeliveryLog` database audit trail.
+- Build resilient asynchronous Celery tasks using automatic retries and exponential backoff calculations.
+- Use `.delay()` to dispatch tasks asynchronously.
+- Run and monitor Celery worker processes from the command line.
+
+#### ⏱ Classroom Timeline (90 min)
+| Segment | Duration | Focus / Teacher Action |
+|---------|----------|------------------------|
+| **1. Hook & Big Picture** | 15 min | Define background worker models. Map the producer-broker-consumer relationship. |
+| **2. Key Concepts & Core Ideas** | 15 min | Explain shared tasks, bindings, exponential backoff, and late acknowledgments. |
+| **3. Live Coding Walkthrough** | 45 min | Start Redis, configure Celery settings, write the Audit Log model, implement the Celery task, update the CLI command, and run the worker. |
+| **4. Check for Understanding** | 10 min | Q&A on Redis message queue states, worker crashes, and task acknowledgment flags. |
+| **5. Class Wrap-up & Checkpoint** | 5 min | Verify async webhook tasks execute in the worker terminal and write logs to admin. |
 
 ---
 
-#### Step 1 — Run Redis
+#### 🚀 Lecture Step-by-Step Delivery Plan
 
-```bash
-docker run -d -p 6379:6379 redis:7-alpine
-```
+##### 1. Hook & Big Picture (15 min)
+* **Teacher Action**: Open the queue diagram. Ask: *"What happens if a publisher's server goes down during our key check? In yesterday's code, the management command waited, blocked, and if the network request crashed, that webhook was lost forever. Today, we will throw the webhook job into a Redis buffer queue, let our management command finish instantly, and have a separate background process handle the HTTP delivery and automatic retries in the background."*
+* **Decoupled Architecture**: Explain that by isolating the execution queue, if our web server crashes, tasks in Redis remain safe. If a publisher is offline, Celery will wait and try again later.
 
----
-
-#### Step 2 — Configure Celery
-
-`gamekey_platform/celery.py`:
-
-```python
-import os
-from celery import Celery
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gamekey_platform.settings')
-
-app = Celery('gamekey_platform')
-app.config_from_object('django.conf:settings', namespace='CELERY')
-app.autodiscover_tasks()
-```
-
-Update `gamekey_platform/__init__.py` so Django loads Celery on startup:
-
-```python
-from .celery import app as celery_app
-
-__all__ = ('celery_app',)
-```
-
-Add to `settings.py`:
-
-```python
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
-CELERY_TASK_ALWAYS_EAGER = False  # set True in tests to run tasks synchronously
-```
+##### 2. Key Concepts & Core Ideas (15 min)
+Introduce these asynchronous concepts:
+* **Task Queue / Broker**: An intermediary (Redis) that receives messages from the publisher and buffers them until a consumer (Celery worker) retrieves them.
+* **`@shared_task`**: A decorator that defines a reusable Celery task without requiring explicit imports of the project-specific Celery application instance.
+* **`bind=True`**: Binds the task function to the task instance, passing the task object itself as `self` (enabling us to invoke retries).
+* **Exponential Backoff**: Instead of retrying immediately (when the remote server is likely still down), we double the wait time on each retry: `60 * (2 ** attempt)` (i.e. 60s, 120s, 240s).
+* **Late Acknowledgment (`task_acks_late=True`)**: Enforces that the worker only tells Redis it completed the task *after* the function successfully executes. If the worker crashes mid-task, Redis re-queues the task for another worker.
 
 ---
 
-#### Step 3 — Webhook Delivery Log Model
+##### 3. Live Coding Walkthrough (45 min)
 
-Add to `games/models.py`:
+###### Step 3.1: Starting the Redis Message Broker
+* **Explain**: Celery needs a queue to store tasks. We will spin up a lightweight Redis instance in a background Docker container.
+* **Code**:
+  ```bash
+  docker run -d -p 6379:6379 redis:7-alpine
+  ```
+* **Verify**: Verify that Redis is listening by running `docker ps` or connecting via `redis-cli ping`.
 
-```python
-class WebhookDeliveryLog(models.Model):
-    game_key = models.CharField(max_length=50)
-    publisher = models.ForeignKey(Publisher, on_delete=models.CASCADE)
-    payload = models.JSONField()
-    response_status = models.IntegerField(null=True, blank=True)
-    error_message = models.TextField(blank=True)
-    attempt = models.IntegerField(default=0)
-    success = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
+###### Step 3.2: Configuring Celery inside Django
+* **Explain**: Create the Celery configuration file in the settings directory, update package initialization files, and add broker URLs to Django settings.
+* **Code**:
+  Create `gamekey_platform/celery.py`:
+  ```python
+  import os
+  from celery import Celery
 
-    class Meta:
-        ordering = ['-created_at']
+  os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'gamekey_platform.settings')
 
-    def __str__(self):
-        status = 'OK' if self.success else 'FAIL'
-        return f"[{status}] {self.game_key} attempt #{self.attempt}"
-```
+  app = Celery('gamekey_platform')
+  app.config_from_object('django.conf:settings', namespace='CELERY')
+  app.autodiscover_tasks()
+  ```
+  Update `gamekey_platform/__init__.py` to load Celery on startup:
+  ```python
+  from .celery import app as celery_app
 
-```bash
-python manage.py makemigrations
-python manage.py migrate
-```
+  __all__ = ('celery_app',)
+  ```
+  Add these configurations to the bottom of `gamekey_platform/settings.py`:
+  ```python
+  CELERY_BROKER_URL = 'redis://localhost:6379/0'
+  CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+  CELERY_TASK_ALWAYS_EAGER = False  # set True in tests to run tasks synchronously
+  ```
+* **Verify**: Run `celery -A gamekey_platform inspect ping` to ensure Celery can connect to Redis.
 
-Register in `admin.py`:
+###### Step 3.3: Creating the Webhook Audit Log Model
+* **Explain**: In production, we must keep a permanent log of all webhook notifications, retries, and delivery responses for auditing and debugging.
+* **Code**:
+  Add `WebhookDeliveryLog` to `games/models.py`:
+  ```python
+  class WebhookDeliveryLog(models.Model):
+      game_key = models.CharField(max_length=50)
+      publisher = models.ForeignKey(Publisher, on_delete=models.CASCADE)
+      payload = models.JSONField()
+      response_status = models.IntegerField(null=True, blank=True)
+      error_message = models.TextField(blank=True)
+      attempt = models.IntegerField(default=0)
+      success = models.BooleanField(default=False)
+      created_at = models.DateTimeField(auto_now_add=True)
 
-```python
-from .models import WebhookDeliveryLog
-admin.site.register(WebhookDeliveryLog)
-```
+      class Meta:
+          ordering = ['-created_at']
+
+      def __str__(self):
+          status = 'OK' if self.success else 'FAIL'
+          return f"[{status}] {self.game_key} attempt #{self.attempt}"
+  ```
+  Run the database migrations and register the model:
+  ```bash
+  python manage.py makemigrations
+  python manage.py migrate
+  ```
+  Register the model in `games/admin.py`:
+  ```python
+  from .models import WebhookDeliveryLog
+  admin.site.register(WebhookDeliveryLog)
+  ```
+* **Verify**: Log into Django Admin and verify that the `Webhook Delivery Logs` section is visible.
+
+###### Step 3.4: Writing the Celery Task with Retries
+* **Explain**: Create `games/tasks.py`. This task retrieves the publisher settings, builds the payload containing the current attempt count, signs it, and dispatches the POST request. If the HTTP call fails or raises an error, the task registers a failure log and schedules a retry with exponential backoff.
+* **Code**:
+  Create `games/tasks.py`:
+  ```python
+  import hmac
+  import hashlib
+  import json
+  import requests
+  from celery import shared_task
+  from .models import Publisher, WebhookDeliveryLog
+
+
+  @shared_task(bind=True, max_retries=3, default_retry_delay=60)
+  def send_expiry_webhook_async(self, publisher_id, game_key_str, game_title, expired_at_iso, attempt=0):
+      publisher = None
+      payload = {}
+
+      try:
+          publisher = Publisher.objects.get(id=publisher_id)
+
+          payload = {
+              "event": "game_key.expired",
+              "game_key": game_key_str,
+              "game_title": game_title,
+              "expired_at": expired_at_iso,
+              "attempt": attempt,
+          }
+
+          secret = publisher.webhook_secret.encode()
+          body = json.dumps(payload, sort_keys=True).encode()
+          signature = hmac.new(secret, body, hashlib.sha256).hexdigest()
+
+          headers = {
+              "Content-Type": "application/json",
+              "X-Signature": f"sha256={signature}",
+          }
+
+          response = requests.post(
+              publisher.webhook_url,
+              json=payload,
+              headers=headers,
+              timeout=5,
+          )
+
+          WebhookDeliveryLog.objects.create(
+              game_key=game_key_str,
+              publisher=publisher,
+              payload=payload,
+              response_status=response.status_code,
+              attempt=attempt,
+              success=response.status_code < 400,
+          )
+
+          if response.status_code >= 400:
+              raise Exception(f"HTTP {response.status_code} from publisher endpoint")
+
+      except Exception as exc:
+          if publisher:
+              WebhookDeliveryLog.objects.create(
+                  game_key=game_key_str,
+                  publisher=publisher,
+                  payload=payload,
+                  error_message=str(exc),
+                  attempt=attempt,
+                  success=False,
+              )
+
+          # Exponential backoff: 60s, 120s, 240s
+          raise self.retry(exc=exc, countdown=60 * (2 ** attempt))
+  ```
+* **⚠️ Common Pitfalls**:
+  - **Omitting `raise` on retry**: If you call `self.retry()` without raising it, the function execution doesn't stop, which can result in double logs. Always write `raise self.retry()`.
+
+###### Step 3.5: Updating the Management Command
+* **Explain**: Update `check_expired_keys.py` to dispatch tasks to the queue using `.delay()` instead of calling the function synchronously. Note that because we update the status field in bulk via `.update()`, we must materialize the queryset to a list *before* running the update.
+* **Code**:
+  Update `games/management/commands/check_expired_keys.py`:
+  ```python
+  from django.core.management.base import BaseCommand
+  from django.utils import timezone
+  from games.models import GameKey
+  from games.tasks import send_expiry_webhook_async
+
+
+  class Command(BaseCommand):
+      help = 'Mark expired keys and dispatch async webhook notifications.'
+
+      def handle(self, *args, **options):
+          expired_keys = GameKey.objects.select_related('game__publisher').filter(
+              expires_at__lte=timezone.now(),
+              status='active'
+          )
+
+          # Capture before update() clears the queryset
+          keys_to_notify = list(expired_keys)
+          count = expired_keys.update(status='expired')
+
+          for key in keys_to_notify:
+              send_expiry_webhook_async.delay(
+                  publisher_id=key.game.publisher.id,
+                  game_key_str=key.key_string,
+                  game_title=key.game.title,
+                  expired_at_iso=key.expires_at.isoformat(),
+                  attempt=0,
+              )
+
+          self.stdout.write(self.style.SUCCESS(
+              f'Expired {count} keys. Webhook tasks dispatched to Celery.'
+          ))
+  ```
+
+###### Step 3.6: Running the Asynchronous Stack
+* **Explain**: Run the Celery worker process and trigger the expiration flow to watch the system in action.
+* **Code**:
+  In terminal tab 1, start the background worker:
+  ```bash
+  celery -A gamekey_platform worker --loglevel=info
+  ```
+  In terminal tab 2, trigger the expiration check command:
+  ```bash
+  python manage.py check_expired_keys
+  ```
+* **Verify**: Watch the logs in terminal tab 1. You should see the tasks received, logged, and executed asynchronously. Open Django admin and verify that corresponding `WebhookDeliveryLog` rows are created.
 
 ---
 
-#### Step 4 — Celery Task with Retries
+#### 4. Check for Understanding (10 min)
 
-`games/tasks.py`:
-
-```python
-import hmac
-import hashlib
-import json
-import requests
-from celery import shared_task
-from .models import Publisher, WebhookDeliveryLog
-
-
-@shared_task(bind=True, max_retries=3, default_retry_delay=60)
-def send_expiry_webhook_async(self, publisher_id, game_key_str, game_title, expired_at_iso, attempt=0):
-    publisher = None
-    payload = {}
-
-    try:
-        publisher = Publisher.objects.get(id=publisher_id)
-
-        payload = {
-            "event": "game_key.expired",
-            "game_key": game_key_str,
-            "game_title": game_title,
-            "expired_at": expired_at_iso,
-            "attempt": attempt,
-        }
-
-        secret = publisher.webhook_secret.encode()
-        body = json.dumps(payload, sort_keys=True).encode()
-        signature = hmac.new(secret, body, hashlib.sha256).hexdigest()
-
-        headers = {
-            "Content-Type": "application/json",
-            "X-Signature": f"sha256={signature}",
-        }
-
-        response = requests.post(
-            publisher.webhook_url,
-            json=payload,
-            headers=headers,
-            timeout=5,
-        )
-
-        WebhookDeliveryLog.objects.create(
-            game_key=game_key_str,
-            publisher=publisher,
-            payload=payload,
-            response_status=response.status_code,
-            attempt=attempt,
-            success=response.status_code < 400,
-        )
-
-        if response.status_code >= 400:
-            raise Exception(f"HTTP {response.status_code} from publisher endpoint")
-
-    except Exception as exc:
-        if publisher:
-            WebhookDeliveryLog.objects.create(
-                game_key=game_key_str,
-                publisher=publisher,
-                payload=payload,
-                error_message=str(exc),
-                attempt=attempt,
-                success=False,
-            )
-
-        # Exponential backoff: 60s, 120s, 240s
-        raise self.retry(exc=exc, countdown=60 * (2 ** attempt))
-```
-
----
-
-#### Step 5 — Update Management Command
-
-`games/management/commands/check_expired_keys.py`:
-
-```python
-from django.core.management.base import BaseCommand
-from django.utils import timezone
-from games.models import GameKey
-from games.tasks import send_expiry_webhook_async
-
-
-class Command(BaseCommand):
-    help = 'Mark expired keys and dispatch async webhook notifications.'
-
-    def handle(self, *args, **options):
-        expired_keys = GameKey.objects.select_related('game__publisher').filter(
-            expires_at__lte=timezone.now(),
-            status='active'
-        )
-
-        # Capture before update() clears the queryset
-        keys_to_notify = list(expired_keys)
-        count = expired_keys.update(status='expired')
-
-        for key in keys_to_notify:
-            send_expiry_webhook_async.delay(
-                publisher_id=key.game.publisher.id,
-                game_key_str=key.key_string,
-                game_title=key.game.title,
-                expired_at_iso=key.expires_at.isoformat(),
-                attempt=0,
-            )
-
-        self.stdout.write(self.style.SUCCESS(
-            f'Expired {count} keys. Webhook tasks dispatched to Celery.'
-        ))
-```
-
----
-
-#### Step 6 — Run the Celery Worker
-
-```bash
-celery -A gamekey_platform worker --loglevel=info
-```
-
-In a second terminal, run the command to trigger notifications:
-
-```bash
-python manage.py check_expired_keys
-```
-
-Watch the worker terminal — you should see tasks being picked up and executed.
-
-### 🎓 Instructor Teaching Plan
-
-#### ⏱ Time Breakdown (90 min)
-
-| Segment | Duration | Activity |
-|---------|----------|----------|
-| Task queue mental model | 15 min | Diagram: producer (management command) → broker (Redis queue) → worker (Celery process) → result backend (Redis). Compare to a restaurant: the kitchen (producer) puts orders on a ticket rail (broker); the cook (worker) picks them up. The worker runs in a separate process — if the web server goes down, tasks already in the queue are safe. |
-| Redis + Celery setup | 15 min | Run Redis via Docker. Write `celery.py`, update `__init__.py`. Add broker/backend URLs to `settings.py`. Verify: `celery -A gamekey_platform inspect ping`. |
-| `WebhookDeliveryLog` model | 10 min | Add model, migrate, register in admin. Explain: every delivery attempt (success or failure) is a logged row. This is an audit trail for debugging. |
-| Write the Celery task | 25 min | Walk through `@shared_task(bind=True, max_retries=3)`. Explain `bind=True` gives us `self` (the task instance). Show `self.retry(exc=exc, countdown=...)`. Explain exponential backoff: 60s → 120s → 240s. |
-| Update management command | 10 min | Swap synchronous call for `.delay()`. Explain: `.delay()` puts the task in Redis; it returns immediately. The worker picks it up asynchronously. |
-| Live demo with worker | 15 min | Two terminals: one runs the worker, one runs `check_expired_keys`. Students watch tasks appear in the worker log and `WebhookDeliveryLog` entries appear in admin. |
-
-#### 💡 Key Concepts to Introduce
-
-- **Task queue** — decouples the producer (who decides what to do) from the worker (who does it). The broker (Redis) is the buffer between them.
-- **`@shared_task`** — preferred over `@app.task` because it doesn't require importing the Celery app object. Works with Django's `autodiscover_tasks()`.
-- **`bind=True`** — passes the task instance as the first argument (`self`). Required for `self.retry()`.
-- **`self.retry(exc, countdown)`** — re-queues the task after `countdown` seconds. Celery tracks the attempt count against `max_retries`.
-- **Exponential backoff** — retrying immediately after a failure often fails again (the remote server is still down). Waiting longer each time gives the system time to recover. `60 * (2 ** attempt)` gives 60s, 120s, 240s.
-- **`.delay()` vs `.apply_async()`** — `.delay(*args, **kwargs)` is shorthand. `.apply_async(args, kwargs, countdown=30)` gives more control (delays, ETAs, priorities).
-- **`CELERY_TASK_ALWAYS_EAGER = True`** — runs tasks synchronously in the same process. Set this in test settings to avoid needing a real worker in tests.
-
-#### ⚠️ Common Mistakes to Address
-
-- **Not importing `celery_app` in `__init__.py`** — Celery's `autodiscover_tasks` won't run. Tasks exist but are never registered with the worker.
-- **Running the management command before starting the worker** — tasks queue up in Redis but nothing processes them. Students see `.delay()` return instantly but nothing happens.
-- **Iterating the queryset after `.update()`** — `update()` modifies the DB but not the in-memory queryset objects. Always `list()` the queryset *before* calling `.update()` (already shown in the code — make sure students understand why).
-- **`self.retry()` must be `raise self.retry()`** — if you call `self.retry()` without `raise`, the function continues executing after the retry call. Always `raise`.
-- **Using `apply()` in production** — `apply()` runs the task synchronously (like `ALWAYS_EAGER`). Only for testing. In production, always use `.delay()` or `.apply_async()`.
-
-#### ❓ Check for Understanding
-
-> "What's in Redis right now, after `.delay()` is called but before the worker picks up the task?"
+> **Question**: "What's in Redis right now, after `.delay()` is called but before the worker picks up the task?"
 >
-> **Answer:** Redis contains a serialized JSON message (the task payload) representing the Celery task. This message includes the task name, task ID, arguments (like `publisher_id`, `game_key_str`), and other metadata, waiting in a list (acting as a queue).
+> **Answer**: Redis contains a serialized JSON message (the task payload) representing the Celery task. This message includes the task name, task ID, arguments (like `publisher_id`, `game_key_str`), and other metadata, waiting in a list (acting as a queue).
 
-> "What happens if the Celery worker crashes mid-task? Is the task lost?"
+> **Question**: "What happens if the Celery worker crashes mid-task? Is the task lost?"
 >
-> **Answer:** With default settings (late acknowledgment disabled), the task is acknowledged when the worker starts, meaning it could be lost if it crashes mid-execution. If late acknowledgment is enabled (`task_acks_late = True`), the task is only acknowledged *after* successful execution; if the worker crashes, the broker (Redis) will re-queue the task for another worker.
+> **Answer**: With default settings (late acknowledgment disabled), the task is acknowledged when the worker starts, meaning it could be lost if it crashes mid-execution. If late acknowledgment is enabled (`task_acks_late = True`), the task is only acknowledged *after* successful execution; if the worker crashes, the broker (Redis) will re-queue the task for another worker.
 
-> "Why do we log *both* successful and failed deliveries to `WebhookDeliveryLog`?"
+> **Question**: "Why do we log *both* successful and failed deliveries to `WebhookDeliveryLog`?"
 >
-> **Answer:** Logging both creates a complete audit trail. It allows developers to diagnose issues, prove to publishers that webhooks were dispatched, analyze error patterns, and keep track of execution history for debugging delivery problems.
+> **Answer**: Logging both creates a complete audit trail. It allows developers to diagnose issues, prove to publishers that webhooks were dispatched, analyze error patterns, and keep track of execution history for debugging delivery problems.
 
-> "What does `bind=True` do, and why do we need it for retries?"
+> **Question**: "What does `bind=True` do, and why do we need it for retries?"
 >
-> **Answer:** `bind=True` binds the task function to the task instance, passing the task instance as the first argument (`self`). We need it because retrying requires calling the `.retry()` method on the task instance itself (`self.retry()`).
+> **Answer**: `bind=True` binds the task function to the task instance, passing the task instance as the first argument (`self`). We need it because retrying requires calling the `.retry()` method on the task instance itself (`self.retry()`).
 
-> "If `max_retries=3` and all retries fail, what happens to the task? How would we know?"
+> **Question**: "If `max_retries=3` and all retries fail, what happens to the task? How would we know?"
 >
-> **Answer:** The task will be marked as `FAILURE` by Celery. An exception (`MaxRetriesExceededError`) will be raised and logged. We would know by checking Celery worker logs, monitoring systems, or checking the `WebhookDeliveryLog` in the database where the final log entry will show `success=False` and the final attempt count.
+> **Answer**: The task will be marked as `FAILURE` by Celery. An exception (`MaxRetriesExceededError`) will be raised and logged. We would know by checking Celery worker logs, monitoring systems, or checking the `WebhookDeliveryLog` in the database where the final log entry will show `success=False` and the final attempt count.
 
-#### ✅ Day Checkpoint
+---
 
-Student runs the Celery worker (`celery -A gamekey_platform worker --loglevel=info`) in one terminal and `python manage.py check_expired_keys` in another. The worker terminal shows task receipt and execution. Admin shows new `WebhookDeliveryLog` entries with `success=True` and `response_status=200`.
+#### 5. Daily Checkpoint & Wrap-up (5 min)
+* **Verification Criteria**:
+  - The Celery background worker starts cleanly.
+  - Running `check_expired_keys` runs instantly without blocking for HTTP calls.
+  - The Celery worker console outputs task receipt and execution details.
+  - The `WebhookDeliveryLog` entries populate in the admin panel showing accurate response statuses and attempt numbers.
 
 ---
 
 ### Day 9 – Testing with pytest-django
 
-**Goals:** Write a meaningful test suite covering the expiry flow and webhook dispatch.
+#### 📋 Teacher Prep & Classroom Setup
+1. **Pre-class Checklist**:
+   - Ensure the virtual environment is active (`source .venv/bin/activate`).
+   - Clean up any previous test runs.
+   - Open `pytest.ini`, `games/tests/test_webhook.py`, and `games/tasks.py` in your IDE.
+2. **Prerequisites Checklist**:
+   - Students must have completed Day 8 successfully (Celery worker, Redis queue, and database logging are configured and working).
+3. **Required Material**:
+   - Whiteboard or slide detailing the Testing Pyramid (Unit tests → Integration tests → End-to-End tests) and explaining what a Mock double is.
 
-```bash
-uv add pytest-django pytest-mock
-```
+#### 🎯 Learning Objectives
+By the end of this class, students will be able to:
+- Explain unit testing philosophies and what to mock vs. what to test.
+- Install and configure `pytest`, `pytest-django`, and `pytest-mock` packages.
+- Define reusable database fixtures with pytest.
+- Inject database permissions in tests using `@pytest.mark.django_db`.
+- Mock external network requests and Celery delay queues using `@patch`.
+- Run a test coverage report and read its results to find untested paths.
 
-`pytest.ini` (project root):
+#### ⏱ Classroom Timeline (90 min)
+| Segment | Duration | Focus / Teacher Action |
+|---------|----------|------------------------|
+| **1. Hook & Big Picture** | 15 min | Define the value of automated testing. Discuss why we mock network and clock dependencies. |
+| **2. Key Concepts & Core Ideas** | 15 min | Explain pytest fixtures, transactional db isolation, mocks, patches, and code coverage. |
+| **3. Live Coding Walkthrough** | 45 min | Install testing plugins, write configuration files, write fixtures, build three custom tests, run tests, and inspect coverage. |
+| **4. Check for Understanding** | 10 min | Q&A on mocking boundaries, `side_effect` vs `return_value`, and coverage reports. |
+| **5. Class Wrap-up & Checkpoint** | 5 min | Run test command and verify all tests pass with ≥70% coverage. |
 
-```ini
-[pytest]
-DJANGO_SETTINGS_MODULE = gamekey_platform.settings
-python_files = test_*.py
-```
+---
 
-`games/tests/__init__.py` — empty file.
+#### 🚀 Lecture Step-by-Step Delivery Plan
 
-`games/tests/test_webhook.py`:
+##### 1. Hook & Big Picture (15 min)
+* **Teacher Action**: Ask the students: *"If we make a change to our order code on Day 12, how do we know we didn't break our Day 8 webhook logic? Do we start our web server, run Redis, spin up a Celery worker, and manually create an order every time? No, we write automated scripts that test all pathways in under 2 seconds."*
+* **Mocking External I/O**: Explain that real tests shouldn't hit real external publisher servers, because if a publisher is down, our internal tests will fail. We use **mocking** to simulate the network response.
 
-```python
-import pytest
-from django.contrib.auth.models import User
-from django.utils import timezone
-from datetime import timedelta
-from unittest.mock import patch, MagicMock
-from django.core.management import call_command
-from games.models import Publisher, Game, GameKey, WebhookDeliveryLog
+##### 2. Key Concepts & Core Ideas (15 min)
+Introduce these testing concepts:
+* **Unit vs Integration Testing**:
+  - *Unit test* verifies a single function in isolation (mocking all external dependencies).
+  - *Integration test* checks if multiple modules work together (like Django views talking to the database).
+* **`@pytest.fixture`**: Reusable functions that setup state before a test executes and tear down state afterward.
+* **`@pytest.mark.django_db`**: By default, pytest blocks database calls to keep tests fast and isolated. This decorator opens up a temporary database transaction which rolls back at the end of the test.
+* **`@patch('module.name')`**: Replaces an import reference with a dummy `MagicMock` object for the duration of the test. Emphasize: *Always patch where the module is imported and used, not where it is defined.*
+* **Code Coverage**: The percentage of code lines executed during testing. Explain that high coverage indicates that lines were executed, but does not guarantee bug-free logic.
 
+---
 
-@pytest.fixture
-def publisher_user(db):
-    user = User.objects.create_user(username='pub_user', password='pass')
-    publisher = Publisher.objects.create(
-        name='Test Publisher',
-        webhook_url='https://example.com/webhook',
-        webhook_secret='supersecret',
-        user=user,
-    )
-    return publisher
+##### 3. Live Coding Walkthrough (45 min)
 
+###### Step 3.1: Package Installation & Configuration
+* **Explain**: Install our testing libraries. We must tell `pytest` where our Django settings file is located using a local configuration file.
+* **Code**:
+  Install plugins:
+  ```bash
+  uv add pytest-django pytest-mock
+  ```
+  Create `pytest.ini` in the project root directory:
+  ```ini
+  [pytest]
+  DJANGO_SETTINGS_MODULE = gamekey_platform.settings
+  python_files = test_*.py
+  ```
+  Create an empty init file under `games/tests/` directory to mark it as a test suite:
+  ```
+  games/tests/__init__.py
+  ```
+* **Verify**: Verify that running `pytest` from the terminal scans for tests, even if it finds zero.
 
-@pytest.fixture
-def expired_game_key(db, publisher_user):
-    game = Game.objects.create(
-        title='Epic Game',
-        publisher=publisher_user,
-        price='29.99',
-    )
-    return GameKey.objects.create(
-        key_string='TEST-KEY-0001',
-        game=game,
-        status='active',
-        expires_at=timezone.now() - timedelta(hours=1),
-        owner=publisher_user.user,
-    )
-
-
-@pytest.mark.django_db
-@patch('games.tasks.send_expiry_webhook_async.delay')
-def test_management_command_dispatches_tasks(mock_delay, expired_game_key):
-    call_command('check_expired_keys')
-    assert mock_delay.called
-    call_args = mock_delay.call_args
-    assert call_args.kwargs['game_key_str'] == 'TEST-KEY-0001'
-
-
-@pytest.mark.django_db
-@patch('games.tasks.requests.post')
-def test_webhook_task_logs_success(mock_post, publisher_user, expired_game_key):
-    from games.tasks import send_expiry_webhook_async
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_post.return_value = mock_response
-
-    send_expiry_webhook_async(
-        publisher_id=publisher_user.id,
-        game_key_str='TEST-KEY-0001',
-        game_title='Epic Game',
-        expired_at_iso=expired_game_key.expires_at.isoformat(),
-        attempt=0,
-    )
-
-    log = WebhookDeliveryLog.objects.get(game_key='TEST-KEY-0001')
-    assert log.success is True
-    assert log.response_status == 200
+###### Step 3.2: Writing the Fixtures
+* **Explain**: We will create reusable data fixtures in `games/tests/test_webhook.py` that set up a publisher profile and an expired game key inside the temporary test database.
+* **Code**:
+  Create `games/tests/test_webhook.py`:
+  ```python
+  import pytest
+  from django.contrib.auth.models import User
+  from django.utils import timezone
+  from datetime import timedelta
+  from unittest.mock import patch, MagicMock
+  from django.core.management import call_command
+  from games.models import Publisher, Game, GameKey, WebhookDeliveryLog
 
 
-@pytest.mark.django_db
-@patch('games.tasks.requests.post')
-def test_webhook_task_logs_failure(mock_post, publisher_user, expired_game_key):
-    from games.tasks import send_expiry_webhook_async
-    mock_post.side_effect = Exception('Connection refused')
+  @pytest.fixture
+  def publisher_user(db):
+      user = User.objects.create_user(username='pub_user', password='pass')
+      publisher = Publisher.objects.create(
+          name='Test Publisher',
+          webhook_url='https://example.com/webhook',
+          webhook_secret='supersecret',
+          user=user,
+      )
+      return publisher
 
-    with pytest.raises(Exception):
-        send_expiry_webhook_async.apply(kwargs=dict(
-            publisher_id=publisher_user.id,
-            game_key_str='TEST-KEY-0001',
-            game_title='Epic Game',
-            expired_at_iso=expired_game_key.expires_at.isoformat(),
-            attempt=0,
-        ))
 
-    log = WebhookDeliveryLog.objects.get(game_key='TEST-KEY-0001')
-    assert log.success is False
-    assert 'Connection refused' in log.error_message
-```
+  @pytest.fixture
+  def expired_game_key(db, publisher_user):
+      game = Game.objects.create(
+          title='Epic Game',
+          publisher=publisher_user,
+          price='29.99',
+      )
+      return GameKey.objects.create(
+          key_string='TEST-KEY-0001',
+          game=game,
+          status='active',
+          expires_at=timezone.now() - timedelta(hours=1),
+          owner=publisher_user.user,
+      )
+  ```
+* **Verify**: Ensure that these fixtures load without syntax errors.
 
-```bash
-pytest --cov=games --cov-report=term-missing
-```
+###### Step 3.3: Writing the Test Logic
+* **Explain**: Add three unit tests to verify:
+  1. The expiration management command successfully detects expired keys and dispatches tasks to the Celery queue.
+  2. The Celery task logs a successful result inside the audit table when the publisher's HTTP response is `200`.
+  3. The Celery task logs a failure entry inside the audit table when requests raise connection errors.
+* **Code**:
+  Append the tests to `games/tests/test_webhook.py`:
+  ```python
+  @pytest.mark.django_db
+  @patch('games.tasks.send_expiry_webhook_async.delay')
+  def test_management_command_dispatches_tasks(mock_delay, expired_game_key):
+      call_command('check_expired_keys')
+      assert mock_delay.called
+      call_args = mock_delay.call_args
+      assert call_args.kwargs['game_key_str'] == 'TEST-KEY-0001'
 
-### 🎓 Instructor Teaching Plan
 
-#### ⏱ Time Breakdown (90 min)
+  @pytest.mark.django_db
+  @patch('games.tasks.requests.post')
+  def test_webhook_task_logs_success(mock_post, publisher_user, expired_game_key):
+      from games.tasks import send_expiry_webhook_async
+      mock_response = MagicMock()
+      mock_response.status_code = 200
+      mock_post.return_value = mock_response
 
-| Segment | Duration | Activity |
-|---------|----------|----------|
-| Testing philosophy | 15 min | What to test and what not to test. Unit tests vs integration tests. The testing pyramid. Why we mock external I/O (network calls, time). What does "70% coverage" actually mean — and what it doesn't mean. |
-| pytest-django setup | 10 min | Install `pytest-django` and `pytest-mock`. Write `pytest.ini`. Explain `DJANGO_SETTINGS_MODULE`. Explain `@pytest.mark.django_db` — by default, tests can't access the DB. |
-| Fixtures | 15 min | Walk through `publisher_user` and `expired_game_key` fixtures. Explain: fixtures provide reusable setup, run fresh for each test. The `db` fixture enables DB access. Show how fixtures compose (one fixture depends on another). |
-| Walk through the 3 tests | 30 min | Test 1: management command dispatches tasks (mock `.delay`). Test 2: task logs success (mock `requests.post`). Test 3: task logs failure (mock raises exception). For each: read the assertion aloud, explain what it proves. |
-| Run coverage + add one more | 10 min | Run `pytest --cov=games --cov-report=term-missing`. Read the report together. Challenge students to add a test for the `create_order` view. |
-| Q&A + checkpoint | 10 min | |
+      send_expiry_webhook_async(
+          publisher_id=publisher_user.id,
+          game_key_str='TEST-KEY-0001',
+          game_title='Epic Game',
+          expired_at_iso=expired_game_key.expires_at.isoformat(),
+          attempt=0,
+      )
 
-#### 💡 Key Concepts to Introduce
+      log = WebhookDeliveryLog.objects.get(game_key='TEST-KEY-0001')
+      assert log.success is True
+      assert log.response_status == 200
 
-- **Unit vs integration tests** — unit: test one function/method in isolation, mock everything external. Integration: test multiple components working together. Our tests are mostly unit tests with a real DB (pytest-django handles isolation).
-- **`@pytest.fixture`** — a function that provides a value to tests. Runs before each test, tears down after. Fixtures can depend on other fixtures.
-- **`@pytest.mark.django_db`** — grants DB access for that test. Each test gets a transaction that's rolled back at the end (no inter-test contamination).
-- **`@patch(target)`** — replaces a name in the target module with a `MagicMock` for the duration of the test. The target must be the import path *where the name is used*, not where it's defined.
-- **`MagicMock`** — an object that accepts any attribute access or method call and returns another mock. Set `.return_value` to control what it returns, `.side_effect` to make it raise an exception.
-- **Coverage** — the percentage of code lines executed by at least one test. 70% is a minimum; it doesn't mean the logic is correct, just that the lines ran.
-- **`task.apply(kwargs=dict(...))`** — runs the Celery task synchronously *without* retries. Useful for testing the task body directly without the Celery retry machinery.
 
-#### ⚠️ Common Mistakes to Address
+  @pytest.mark.django_db
+  @patch('games.tasks.requests.post')
+  def test_webhook_task_logs_failure(mock_post, publisher_user, expired_game_key):
+      from games.tasks import send_expiry_webhook_async
+      mock_post.side_effect = Exception('Connection refused')
 
-- **Wrong `@patch` target** — the most common testing mistake. `@patch('games.tasks.requests.post')` patches `requests.post` *as imported in `games/tasks.py`*. Patching `requests.post` globally won't work if `tasks.py` has already imported it. Rule: patch where it's used.
-- **Not using `@pytest.mark.django_db`** — the test appears to pass (no assertion errors) because the fixture never hits the DB, but actually the DB wasn't accessible and the test proved nothing.
-- **Calling `.delay()` in tests** — this actually queues the task to Redis (if a broker is running) or raises `OperationalError` (if not). Always use `@patch` or `CELERY_TASK_ALWAYS_EAGER = True` in tests.
-- **Not asserting on the right thing** — `assert mock_delay.called` tells you the function was called, but `call_args.kwargs['game_key_str'] == 'TEST-KEY-0001'` verifies the right arguments were passed. Encourage students to assert on the *what*, not just the *whether*.
-- **Shared state between tests** — pytest-django wraps each test in a transaction and rolls it back. Students should not rely on data from a previous test existing.
+      with pytest.raises(Exception):
+          send_expiry_webhook_async.apply(kwargs=dict(
+              publisher_id=publisher_user.id,
+              game_key_str='TEST-KEY-0001',
+              game_title='Epic Game',
+              expired_at_iso=expired_game_key.expires_at.isoformat(),
+              attempt=0,
+          ))
 
-#### ❓ Check for Understanding
+      log = WebhookDeliveryLog.objects.get(game_key='TEST-KEY-0001')
+      assert log.success is False
+      assert 'Connection refused' in log.error_message
+  ```
+* **Verify**: Run `pytest` inside the terminal and ensure all tests run and pass.
+* **⚠️ Common Pitfalls**:
+  - **Wrong `@patch` target**: Remind students that patching `requests.post` globally does not work. We must patch `games.tasks.requests.post` because that's where the request is executed.
+  - **Calling `.delay()` inside tests**: Calling `.delay()` would push the task onto a real Redis broker. For testing, we mock `.delay` (Test 1) or run the function synchronously using `task.apply(...)` (Test 3).
 
-> "Why do we `@patch('games.tasks.requests.post')` rather than `@patch('requests.post')`?"
+###### Step 3.4: Generating Coverage Reports
+* **Explain**: Measure our test coverage to see what percentage of code lines were touched during execution.
+* **Code**:
+  Run coverage:
+  ```bash
+  pytest --cov=games --cov-report=term-missing
+  ```
+* **Verify**: Review the command output. Highlight any lines marked missing and explain how to write tests targeting them.
+
+---
+
+#### 4. Check for Understanding (10 min)
+
+> **Question**: "Why do we `@patch('games.tasks.requests.post')` rather than `@patch('requests.post')`?"
 >
-> **Answer:** We patch where the module is imported and used, not where it is defined. In `games/tasks.py`, the code uses `requests.post`. If we patched `requests.post` globally, `games/tasks.py` would still use its local, unpatched reference to the real `requests.post` function.
+> **Answer**: We patch where the module is imported and used, not where it is defined. In `games/tasks.py`, the code uses `requests.post`. If we patched `requests.post` globally, `games/tasks.py` would still use its local, unpatched reference to the real `requests.post` function.
 
-> "What does `mock_post.side_effect = Exception('Connection refused')` do differently from `mock_post.return_value = ...`?"
+> **Question**: "What does `mock_post.side_effect = Exception('Connection refused')` do differently from `mock_post.return_value = ...`?"
 >
-> **Answer:** `.return_value` makes the mock function return a specific value (like a mock response object) when called. `.side_effect` raises the specified exception when the mock function is called, allowing us to test how the code handles connection failures or timeouts.
+> **Answer**: `.return_value` makes the mock function return a specific value (like a mock response object) when called. `.side_effect` raises the specified exception when the mock function is called, allowing us to test how the code handles connection failures or timeouts.
 
-> "If a test has 100% line coverage, does that mean it's bug-free? Why or why not?"
+> **Question**: "If a test has 100% line coverage, does that mean it's bug-free? Why or why not?"
 >
-> **Answer:** No, 100% line coverage only means every line of code was executed at least once during the tests. It does not verify different combinations of inputs, edge cases, race conditions, logical errors, or unexpected database states.
+> **Answer**: No, 100% line coverage only means every line of code was executed at least once during the tests. It does not verify different combinations of inputs, edge cases, race conditions, logical errors, or unexpected database states.
 
-> "Why do we use `task.apply(kwargs=...)` instead of `task.delay(...)` in the failure test?"
+> **Question**: "Why do we use `task.apply(kwargs=...)` instead of `task.delay(...)` in the failure test?"
 >
-> **Answer:** `task.apply()` runs the task synchronously in the current process, making it easy to catch exceptions and test the task logic step-by-step. `task.delay()` sends the task to Redis asynchronously, making it run in a separate Celery worker process where exceptions are caught by Celery and not raised in the test execution context.
+> **Answer**: `task.apply()` runs the task synchronously in the current process, making it easy to catch exceptions and test the task logic step-by-step. `task.delay()` sends the task to Redis asynchronously, making it run in a separate Celery worker process where exceptions are caught by Celery and not raised in the test execution context.
 
-#### ✅ Day Checkpoint
+---
 
-`pytest --cov=games --cov-report=term-missing` passes with all 3 tests green and coverage ≥ 70%. Student can explain what each test is verifying and why the mocks are necessary.
+#### 5. Daily Checkpoint & Wrap-up (5 min)
+* **Verification Criteria**:
+  - Running `pytest` runs and passes all 3 tests.
+  - Running `pytest --cov=games --cov-report=term-missing` outputs a report showing test coverage of at least 70% for the custom app logic.
 
 ---
 
 ### Day 10 – Final Integration & Deployment
 
-**Goals:** Containerise the application and deploy to a cloud provider.
+#### 📋 Teacher Prep & Classroom Setup
+1. **Pre-class Checklist**:
+   - Ensure Docker and Docker Compose are installed and running locally.
+   - Set up an active Git repository pushed to a private or public GitHub account.
+   - Open a browser page to `https://render.com` (or your preferred cloud provider).
+   - Open `Dockerfile`, `docker-compose.yml`, and `gamekey_platform/settings.py` in your IDE.
+2. **Prerequisites Checklist**:
+   - Students must have completed Day 9 successfully (All tests passing locally, coverage ≥ 70%).
+3. **Required Material**:
+   - Diagram comparing Virtual Machines vs. Containers (highlighting host OS sharing).
+   - A diagram of the three containerized services and how they bind and network together:
+     `Host Machine (Port 8000) → Web Container (Port 8000) ↔ Redis Container (Port 6379) ↔ Worker Container`
 
-`Dockerfile`:
+#### 🎯 Learning Objectives
+By the end of this class, students will be able to:
+- Explain containerization principles and how Docker solves environment dependency issues.
+- Build a Python base image using `Dockerfile` instructions and the `uv` tool.
+- Assemble multi-container architectures using `docker-compose.yml`.
+- Configure binding and ports to expose applications to local hosts.
+- Configure and deploy applications to Render (Web Services, Workers, and Redis).
+- Complete a final system integration test checking endpoints, auth, tasks, audit logs, and tests.
 
-```dockerfile
-FROM python:3.12-slim
+#### ⏱ Classroom Timeline (90 min)
+| Segment | Duration | Focus / Teacher Action |
+|---------|----------|------------------------|
+| **1. Hook & Big Picture** | 20 min | Introduce containerization. Discuss local vs. production differences. |
+| **2. Key Concepts & Core Ideas** | 15 min | Explain Docker images vs. containers, port bindings, compose networks, and production web servers. |
+| **3. Live Coding Walkthrough** | 45 min | Write the Dockerfile, write docker-compose.yml, test multi-service stack locally, and deploy services to Render. |
+| **4. Check for Understanding** | 10 min | Q&A on build vs. runtime commands, local loops in containers, and database ephemeral disks. |
+| **5. Class Wrap-up & Wrap-up Checklist**| 10 min | Complete final system integration checklist. Celebrate bootcamp completion! |
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+---
 
-WORKDIR /app
-COPY . .
+#### 🚀 Lecture Step-by-Step Delivery Plan
 
-RUN uv sync --no-dev
+##### 1. Hook & Big Picture (20 min)
+* **Teacher Action**: Ask students: *"How many times have you heard 'but it works on my machine!' when deploying code? Today, we will package our application code, virtual environment, and system packages into an immutable container image. This image will run identically on your laptop, a colleague's machine, or a cloud server in Oregon."*
+* **Multi-Service Architecture**: Review the final architecture. To run this app, we need three pieces: a web API server, a Redis queue, and a Celery worker. Running these individually on a server is complex; Docker Compose simplifies this by orchestrating them in a single command.
 
-CMD ["uv", "run", "python", "manage.py", "runserver", "0.0.0.0:8000"]
-```
+##### 2. Key Concepts & Core Ideas (15 min)
+Introduce these container and deployment rules:
+* **Docker Image vs. Container**: An *image* is the read-only blueprint (like a class definition). A *container* is a running, writable instance of that image (like an instantiated object).
+* **`RUN` vs. `CMD`**:
+  - `RUN` executes during the image build phase (installing tools, running compilations).
+  - `CMD` defines the default shell script execution command when the container starts up.
+* **`0.0.0.0` Binding**: Django's dev server binds to `127.0.0.1` by default. Inside a container, `127.0.0.1` is completely isolated. Binding to `0.0.0.0` tells the container to listen for network traffic coming from outside its boundaries.
+* **Service Networking**: In Docker Compose, containers communicate using service names (e.g. `redis://redis:6379/0`) rather than `localhost`.
+* **Gunicorn**: Explain that Django's `runserver` is single-threaded and unsafe for production. In production, we swap `runserver` for a WSGI HTTP server like `Gunicorn`.
+* **Ephemeral Filesystem**: Explain that cloud containers are stateless; any file written to local disk (like `db.sqlite3`) is destroyed on redeploy. Thus, real databases (PostgreSQL) must run outside the web container.
 
-`docker-compose.yml`:
+---
 
-```yaml
-version: '3.9'
+##### 3. Live Coding Walkthrough (45 min)
 
-services:
-  web:
-    build: .
-    ports:
-      - "8000:8000"
-    env_file:
-      - .env
-    depends_on:
-      - redis
-    command: uv run python manage.py runserver 0.0.0.0:8000
+###### Step 3.1: Writing the Dockerfile
+* **Explain**: Create the image blueprint. We start from a slim Python 3.12 image, copy `uv` binary to install dependencies rapidly, copy our code, sync libraries, and set the default launch command.
+* **Code**:
+  Create `Dockerfile` in the project root:
+  ```dockerfile
+  FROM python:3.12-slim
 
-  worker:
-    build: .
-    env_file:
-      - .env
-    depends_on:
-      - redis
-    command: uv run celery -A gamekey_platform worker --loglevel=info
+  # Install uv
+  COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-```
+  WORKDIR /app
+  COPY . .
 
-```bash
-docker compose up --build
-```
+  RUN uv sync --no-dev
 
-**Deploying to Render:**
+  CMD ["uv", "run", "python", "manage.py", "runserver", "0.0.0.0:8000"]
+  ```
 
-1. Push repo to GitHub
-2. Create a new **Web Service** on [render.com](https://render.com), pointing at your repo
-3. Set build command: `uv sync --no-dev && python manage.py migrate`
-4. Set start command: `python manage.py runserver 0.0.0.0:$PORT`
-5. Add a **Redis** instance (Render provides one) and set `CELERY_BROKER_URL` in environment variables
-6. Add a **Background Worker** service using command: `celery -A gamekey_platform worker --loglevel=info`
+###### Step 3.2: Assembling the Multi-Container Compose Stack
+* **Explain**: Create the compose file to wire up our web, worker, and Redis services. Notice that both `web` and `worker` build from the same Dockerfile, but execute different commands on startup.
+* **Code**:
+  Create `docker-compose.yml` in the project root:
+  ```yaml
+  version: '3.9'
 
-**Final checklist:**
-- [ ] All endpoints return correct status codes
-- [ ] Token auth blocks unauthenticated writes
-- [ ] `check_expired_keys` triggers Celery tasks
-- [ ] `WebhookDeliveryLog` entries are created per attempt
-- [ ] pytest suite passes with ≥70% coverage
-- [ ] Docker Compose brings up all three services cleanly
+  services:
+    web:
+      build: .
+      ports:
+        - "8000:8000"
+      env_file:
+        - .env
+      depends_on:
+        - redis
+      command: uv run python manage.py runserver 0.0.0.0:8000
 
-### 🎓 Instructor Teaching Plan
+    worker:
+      build: .
+      env_file:
+        - .env
+      depends_on:
+        - redis
+      command: uv run celery -A gamekey_platform worker --loglevel=info
 
-#### ⏱ Time Breakdown (90 min)
+    redis:
+      image: redis:7-alpine
+      ports:
+        - "6379:6379"
+  ```
+* **Verify**: Ensure YAML indentation is correct.
 
-| Segment | Duration | Activity |
-|---------|----------|----------|
-| Docker concepts | 20 min | Containers vs VMs. Image = blueprint, container = running instance. Layers (each `RUN` / `COPY` = one layer, cached independently). Why Docker: "works on my machine" problem solved. Multi-service apps need `docker compose`. |
-| Write Dockerfile | 15 min | Walk through each instruction. Why `python:3.12-slim` over full Python? Why `WORKDIR /app` before `COPY`? Why `uv sync --no-dev` (no dev dependencies in production)? |
-| Write `docker-compose.yml` | 15 min | Three services: `web`, `worker`, `redis`. `depends_on` for startup ordering. `env_file` for environment variables. Separate `command` per service — both `web` and `worker` use the same image but different entry points. |
-| `docker compose up --build` | 10 min | Build and run. Test `POST /api/orders/` through the containerized stack. If something fails, read the logs: `docker compose logs web`. |
-| Render deployment walkthrough | 20 min | Push to GitHub. Create Web Service, Worker Service, Redis. Set environment variables (especially `CELERY_BROKER_URL`). Trigger a deploy. |
-| Final checklist + wrap-up | 10 min | Go through the checklist together. Celebrate what students built. Preview: what would the production hardening look like? (Gunicorn, PostgreSQL, ALLOWED_HOSTS, HTTPS.) |
+###### Step 3.3: Running the Stack Locally
+* **Explain**: Compile the images and bring the services up.
+* **Code**:
+  ```bash
+  docker compose up --build
+  ```
+* **Verify**: Watch the terminal output. Confirm that `web`, `worker`, and `redis` boot up without errors. Send a POST request to `/api/orders/` and verify that tasks process in the containerized worker terminal.
+* **⚠️ Common Pitfalls**:
+  - **`CELERY_BROKER_URL` misconfiguration**: Ensure that inside Docker Compose, `CELERY_BROKER_URL` points to `redis://redis:6379/0` (the name of the container service), not `localhost`.
 
-#### 💡 Key Concepts to Introduce
+###### Step 3.4: Deploying to Render
+* **Explain**: Walk students through pushing the repository to GitHub and deploying to Render.
+* **Steps**:
+  1. Push code to a GitHub repo.
+  2. Create a new **Web Service** on Render, pointing to your repo.
+     - Build Command: `uv sync --no-dev && python manage.py migrate`
+     - Start Command: `gunicorn gamekey_platform.wsgi:application --bind 0.0.0.0:$PORT`
+  3. Create a **Redis** instance on Render and copy its connection URL.
+  4. Inject Environment Variables into the Web Service:
+     - `CELERY_BROKER_URL` (pasted Redis URL)
+     - `SECRET_KEY` (secret token)
+     - `DEBUG` (`False`)
+     - `ALLOWED_HOSTS` (`['your-app.onrender.com']`)
+  5. Create a **Background Worker** service pointing to the same repo:
+     - Start Command: `celery -A gamekey_platform worker --loglevel=info`
+     - Inject same environment variables (including `CELERY_BROKER_URL`).
 
-- **Docker image vs container** — image is immutable, like a class definition. Container is a running instance, like an object. Multiple containers can run from the same image.
-- **`CMD` vs `RUN`** — `RUN` executes during build (creates image layers). `CMD` runs when a container starts. `docker-compose.yml` `command:` overrides `CMD`.
-- **`0.0.0.0` binding** — Django's dev server listens on `127.0.0.1` (loopback) by default. Inside a container, `127.0.0.1` is the container itself — the host machine can't reach it. `0.0.0.0:8000` makes it accessible from outside the container.
-- **`env_file` in compose** — loads the `.env` file into the container's environment. Same as setting each variable manually in the `environment:` section but cleaner.
-- **`depends_on`** — controls start order, not readiness. Redis might not be fully ready when the web service starts. In production, use health checks (`healthcheck:`) or retry logic.
-- **Gunicorn vs `runserver`** — `runserver` is single-threaded, for development only. In production, Gunicorn (or uWSGI) runs multiple worker processes. Render's expected `gunicorn gamekey_platform.wsgi` command vs `runserver`.
+---
 
-#### ⚠️ Common Mistakes to Address
+#### 4. Check for Understanding (10 min)
 
-- **`runserver` in production** — Django explicitly warns against this. On Render, use Gunicorn: `gunicorn gamekey_platform.wsgi:application`. Add it with `uv add gunicorn`.
-- **`ALLOWED_HOSTS` not updated** — Django rejects requests from unknown hosts in production. Must include the Render domain: `ALLOWED_HOSTS = ['your-app.onrender.com']` or `['*']` temporarily.
-- **SQLite in production** — SQLite is a local file. On Render, the filesystem is ephemeral — the DB is wiped on every redeploy. Use Supabase or Neon for PostgreSQL in production.
-- **Not running `migrate` in the build command** — deploy succeeds but the app crashes immediately on the first DB request. Build command must be: `uv sync --no-dev && python manage.py migrate`.
-- **`CELERY_BROKER_URL` pointing to `localhost`** — inside Docker Compose, services are accessed by service name, not `localhost`. `redis://redis:6379/0` (service name `redis`), not `redis://localhost:6379/0`.
-- **Worker service missing** — students deploy only the web service. Webhooks are never delivered because no Celery worker is running.
-
-#### ❓ Check for Understanding
-
-> "Why do the `web` and `worker` services use the same Docker image but different `command` values?"
+> **Question**: "Why do the `web` and `worker` services use the same Docker image but different `command` values?"
 >
-> **Answer:** Both services run the same codebase and need the same environment variables, libraries, and settings. However, the `web` service runs the HTTP web server (`manage.py runserver` or Gunicorn) to handle API requests, while the `worker` service runs the Celery daemon (`celery worker`) to process background tasks. Using the same image simplifies building and keeps the dependencies identical.
+> **Answer**: Both services run the same codebase and need the same environment variables, libraries, and settings. However, the `web` service runs the HTTP web server (`manage.py runserver` or Gunicorn) to handle API requests, while the `worker` service runs the Celery daemon (`celery worker`) to process background tasks. Using the same image simplifies building and keeps the dependencies identical.
 
-> "What's the problem with binding the Django dev server to `127.0.0.1` inside a Docker container?"
+> **Question**: "What's the problem with binding the Django dev server to `127.0.0.1` inside a Docker container?"
 >
-> **Answer:** `127.0.0.1` is the loopback interface, which is only accessible within the container itself. If the dev server is bound to `127.0.0.1`, the host machine and outer network cannot access the container's port. Binding to `0.0.0.0` tells the container to listen on all interfaces, allowing traffic from the host machine to reach the server.
+> **Answer**: `127.0.0.1` is the loopback interface, which is only accessible within the container itself. If the dev server is bound to `127.0.0.1`, the host machine and outer network cannot access the container's port. Binding to `0.0.0.0` tells the container to listen on all interfaces, allowing traffic from the host machine to reach the server.
 
-> "Why can't we use SQLite in production on Render?"
+> **Question**: "Why can't we use SQLite in production on Render?"
 >
-> **Answer:** SQLite stores data in a local file on the container's disk. Render containers have an ephemeral filesystem, meaning their disks are wiped and recreated on every deployment, restart, or scale event, resulting in complete database loss. Production environments require a persistent, remote database service (like PostgreSQL).
+> **Answer**: SQLite stores data in a local file on the container's disk. Render containers have an ephemeral filesystem, meaning their disks are wiped and recreated on every deployment, restart, or scale event, resulting in complete database loss. Production environments require a persistent, remote database service (like PostgreSQL).
 
-> "What would happen if we forgot to add `python manage.py migrate` to the build command?"
+> **Question**: "What would happen if we forgot to add `python manage.py migrate` to the build command?"
 >
-> **Answer:** The application would start, but any database queries (such as listing games, user registration, or purchasing keys) would fail with database errors (e.g., `Relation does not exist` or `no such table`) because the database tables would not match the new code models.
+> **Answer**: The application would start, but any database queries (such as listing games, user registration, or purchasing keys) would fail with database errors (e.g., `Relation does not exist` or `no such table`) because the database tables would not match the new code models.
 
-#### ✅ Day Checkpoint (Final)
+---
 
-`docker compose up --build` starts all three services without errors. `POST /api/orders/` returns `201` through the containerized stack. The Celery worker (in the `worker` container) logs task execution. If deployed to Render: the web service URL returns a valid API response and the worker service shows as "running" in the Render dashboard. `pytest` suite passes with ≥70% coverage.
+#### 5. Final Integration Checklist (10 min)
+Go through this final checklist with the class before wrapping up:
+- [ ] **API Endpoints**: All endpoints return standard HTTP status codes (`200`, `201`, `400`, `401`, `403`, `404`).
+- [ ] **Security**: Token Auth blocks unauthenticated writes and custom permissions protect publisher resources.
+- [ ] **Async Engine**: The management command `check_expired_keys` successfully detects expired keys and dispatches background tasks.
+- [ ] **Audit Trail**: Every webhook delivery attempt is logged in `WebhookDeliveryLog` showing response statuses and retries.
+- [ ] **Tests**: The unit test suite passes successfully with code coverage ≥70%.
+- [ ] **Containers**: Docker Compose spins up the web API, message queue, and Celery worker cleanly.
 
 ---
 
