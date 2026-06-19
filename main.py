@@ -4,46 +4,47 @@ from markdown_pdf import MarkdownPdf, Section
 CSS_STYLE = """
 @page {
     size: A4;
-    margin: 2.5cm;
+    margin: 2.5cm 2cm;
 }
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    color: #1e293b;
-    line-height: 1.6;
-    font-size: 11pt;
+    color: #334155; /* Slate 700 */
+    line-height: 1.625;
+    font-size: 10.5pt;
 }
 
 h1, h2, h3, h4, h5, h6 {
-    color: #0f172a;
+    color: #0f172a; /* Slate 900 */
     font-weight: 700;
-    margin-top: 1.5em;
+    margin-top: 1.75em;
     margin-bottom: 0.5em;
+    page-break-after: avoid;
 }
 
 h1 {
-    font-size: 24pt;
-    border-bottom: 2px solid #e2e8f0;
+    font-size: 26pt;
+    border-bottom: 3px solid #6366f1; /* Indigo accent border */
     padding-bottom: 0.3em;
     margin-top: 0;
-    color: #1e3a8a;
+    color: #4338ca; /* Indigo-700 */
 }
 
 h2 {
-    font-size: 16pt;
+    font-size: 17pt;
     border-bottom: 1px solid #e2e8f0;
-    padding-bottom: 0.2em;
-    color: #2563eb;
+    padding-bottom: 0.25em;
+    color: #1e3a8a; /* Deep blue */
 }
 
 h3 {
     font-size: 13pt;
-    color: #1e40af;
+    color: #2563eb; /* Blue-600 */
 }
 
 h4 {
     font-size: 11pt;
-    color: #334155;
+    color: #475569; /* Slate-600 */
 }
 
 p {
@@ -52,13 +53,24 @@ p {
 }
 
 a {
-    color: #2563eb;
+    color: #4f46e5;
     text-decoration: none;
+    font-weight: 500;
+}
+
+ul, ol {
+    margin-top: 0;
+    margin-bottom: 1.2em;
+    padding-left: 1.5em;
+}
+
+li {
+    margin-bottom: 0.4em;
 }
 
 code {
     font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, Courier, monospace;
-    background-color: #f1f5f9;
+    background-color: #f1f5f9; /* Slate-100 */
     color: #0f172a;
     padding: 0.15em 0.3em;
     border-radius: 4px;
@@ -66,9 +78,10 @@ code {
 }
 
 pre {
-    background-color: #0f172a;
+    background-color: #0f172a; /* Slate-900 */
+    border-left: 4px solid #6366f1; /* Left indigo accent strip */
     color: #f8fafc;
-    padding: 1em;
+    padding: 1.25em;
     border-radius: 6px;
     overflow-x: auto;
     margin-top: 0;
@@ -83,9 +96,9 @@ pre code {
 }
 
 blockquote {
-    border-left: 4px solid #3b82f6;
-    background-color: #eff6ff;
-    padding: 0.75em 1em;
+    border-left: 4px solid #3b82f6; /* Blue-500 */
+    background-color: #f8fafc; /* Slate-50 */
+    padding: 1em 1.25em;
     margin-left: 0;
     margin-right: 0;
     margin-top: 0;
@@ -95,14 +108,16 @@ blockquote {
 
 blockquote p {
     margin: 0;
-    color: #1e40af;
+    color: #334155;
+    font-style: italic;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 1em;
+    margin-top: 1.25em;
     margin-bottom: 1.5em;
+    font-size: 9.5pt;
 }
 
 th, td {
@@ -115,16 +130,20 @@ th {
     background-color: #f8fafc;
     color: #0f172a;
     font-weight: 600;
+    text-transform: uppercase;
+    font-size: 8pt;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid #cbd5e1;
 }
 
-tr:nth-child(even) {
+tr:nth-child(even) td {
     background-color: #f8fafc;
 }
 
 hr {
     border: 0;
     border-top: 1px solid #e2e8f0;
-    margin: 2em 0;
+    margin: 2.25em 0;
 }
 """
 
