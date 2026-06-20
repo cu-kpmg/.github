@@ -175,11 +175,11 @@ def sort_key(p: Path) -> tuple:
 
 def main():
     root = Path(__file__).parent
-    excluded_parts = {"profile", ".venv"}
+    lectures_dir = root / "lectures" / "django"
     md_files = [
         p
-        for p in root.rglob("*.md")
-        if p.stat().st_size > 0 and not any(part in excluded_parts for part in p.parts)
+        for p in lectures_dir.rglob("*.md")
+        if p.stat().st_size > 0
     ]
 
     if not md_files:
