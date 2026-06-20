@@ -175,7 +175,7 @@ def sort_key(p: Path) -> tuple:
 
 def main():
     root = Path(__file__).parent
-    lectures_dir = root / "lectures" / "django"
+    lectures_dir = root / "lectures"
     md_files = [
         p
         for p in lectures_dir.rglob("*.md")
