@@ -78,9 +78,8 @@ code {
 }
 
 pre {
-    background-color: #0f172a; /* Slate-900 */
     border-left: 4px solid #6366f1; /* Left indigo accent strip */
-    color: #f8fafc;
+    color: #0f172a;
     padding: 1.25em;
     border-radius: 6px;
     overflow-x: auto;
