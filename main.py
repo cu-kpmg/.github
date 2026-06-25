@@ -86,6 +86,8 @@ pre {
     overflow-x: auto;
     margin-top: 0;
     margin-bottom: 1.5em;
+    page-break-inside: avoid;
+    break-inside: avoid;
 }
 
 pre code {
